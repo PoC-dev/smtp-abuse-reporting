@@ -24,7 +24,7 @@ It also updates timestamps in the respective tables accordingly after a particul
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
 - `.abusedb.sqlite` is the SQLite database which is automatically created by any of the aforementioned scripts if not existing. Note that this is created in the current working directory of the launched scripts. Since those are meant to be run by `cron`, the file is supposed to end up in the user's respective home directory.
 
-## Using.
+## Installation.
 I recommend copying the scripts to the home directory of a user who's allowed to read log files. For that user, I'm creating a `~/bin` directory to hold this (and other) scripts.
 
 Next, install prerequisites. Example for Debian 12:
@@ -42,6 +42,15 @@ Finally, create a cronjob like the following:
 51 * * * *  /usr/sbin/logtail -f /var/log/mail.log -o .smtp-abuse-syslog-offset |bin/smtp-abuse-syslog.pl
 ```
 Because there is not yet a *.smtp-abuse-syslog-offset* file, the omitted current log file will now be parsed entirely and entries added. With that, there is no opportunity to miss any entries.
+
+Both scripts support command line options:
+```
+-d: Enable debug mode
+-h: Show help and exit
+-t: Test database connection and exit
+-v: Show version and exit
+```
+Note that logging is done almost entirely via syslog, facility user. Debug mode switches on concurrent logging to stderr.
 
 ### Database layout.
 The aforementioned `.abusedb.sqlite` contains the following database tables and fields:
