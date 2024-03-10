@@ -79,6 +79,7 @@ if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
 }
 syslog(LOG_DEBUG, "Init: Connecting to database");
+# FIXME: Convert to absolute path in home directory.
 $dbh = DBI->connect("dbi:SQLite:dbname=.abusedb.sqlite","","");
 if ( ! defined($dbh) ) {
     if ( $test_db == 1 ) {
@@ -105,7 +106,6 @@ if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
     die;
 }
-
 $dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
@@ -114,9 +114,27 @@ if ( defined($dbh->errstr) ) {
 
 $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
     abuseaddr TEXT,
-    ipaddr TEXT NOT NULL PRIMARY KEY,
+    ipaddr TEXT NOT NULL PRIMARY KEY
+    );");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    die;
+}
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    die;
+}
+
+$dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
+    abuseaddr TEXT NOT NULL PRIMARY KEY,
     lastreport TEXT
     );");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    die;
+}
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport);");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
     die;
