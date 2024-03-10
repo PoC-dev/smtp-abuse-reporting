@@ -18,18 +18,30 @@ The second part (script) is meant to generate reports by aggregating collected d
 
 It also updates timestamps in the respective tables accordingly after a particular report has been sent.
 
-**Note:** The second part is still in early development phase, and not yet functional.
+**Note:** The second part is still in early development phase, and not yet functional. The syslog parser is in an usable state, so data collection can commence.
 
 ## Files.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
 - `.abusedb.sqlite` is the SQLite database which is automatically created by any of the aforementioned scripts if not existing. Note that this is created in the current working directory of the launched scripts. Since those are meant to be run by `cron`, the file is supposed to end up in the user's respective home directory.
 
 ## Using.
-Create a cronjob like the following:
+I recommend copying the scripts to the home directory of a user who's allowed to read log files. For that user, I'm creating a `~/bin` directory to hold this (and other) scripts.
+
+Next, install prerequisites. Example for Debian 12:
+```
+apt-get install libdbd-sqlite3-perl libnet-dns-perl
+```
+You can always just run `./bin/smtp-abuse-syslog.pl` to check for errors about missing perl modules. If there are no more, it waits for data on stdin. Quit with EOF (`Ctrl-D`).
+
+Next, use the archived logs to fill the database with inital data:
+```
+( zcat /var/log/mail.log.4.gz /var/log/mail.log.3.gz /var/log/mail.log.2.gz; cat /var/log/mail.log.1; ) |~/bin/smtp-abuse-syslog.pl -d
+```
+Finally, create a cronjob like the following:
 ```
 51 * * * *  /usr/sbin/logtail -f /var/log/mail.log -o .smtp-abuse-syslog-offset |bin/smtp-abuse-syslog.pl
 ```
-*Logtail* is part of the *logrotate* Package.
+Because there is not yet a *.smtp-abuse-syslog-offset* file, the omitted current log file will now be parsed entirely and entries added. With that, there is no opportunity to miss any entries.
 
 ### Database layout.
 The aforementioned `.abusedb.sqlite` contains the following database tables and fields:
