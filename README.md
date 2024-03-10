@@ -18,7 +18,7 @@ The second part (script) is meant to generate reports by aggregating collected d
 
 It also updates timestamps in the respective tables accordingly after a particular report has been sent.
 
-**Note:** The second part is still in early development phase.
+**Note:** The second part is still in early development phase, and not yet functional.
 
 ## Files.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.

@@ -20,7 +20,6 @@ use DBI;
 use Getopt::Std;
 use Sys::Syslog;
 use Time::Piece;
-use Net::DNS;
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Vars.
@@ -43,7 +42,7 @@ if ( $retval != 1 ) {
 }
 
 if ( defined($options{h}) || $retval != 1 ) {
-    printf("Usage: abuse-smtp-syslog(.pl) [options]\nOptions:
+    printf("Usage: abuse-smtp-report(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
     -t: Test database connection and exit
@@ -58,9 +57,9 @@ if ( defined($options{h}) || $retval != 1 ) {
 
 # Enable debug mode.
 if ( defined($options{d}) ) {
-    openlog("abuse-smtp-syslog", "perror,pid", "user");
+    openlog("abuse-smtp-report", "perror,pid", "user");
 } else {
-    openlog("abuse-smtp-syslog", "pid", "user");
+    openlog("abuse-smtp-report", "pid", "user");
     # Omit debug messages by default.
     # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(6);
@@ -94,7 +93,7 @@ if ( ! defined($dbh) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Create tables, just in case they don't yet exist.
-# Note: This has to be kept in sync with the definitions in smtp-abuse-report.pl.
+# Note: This has to be kept in sync with the definitions in smtp-abuse-syslog.pl.
 
 $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     dnsptr TEXT NOT NULL,
@@ -143,17 +142,18 @@ if ( defined($dbh->errstr) ) {
 
 
 # Create predefined statements.
-my $sth_insert_syslog = $dbh->prepare("INSERT INTO parsed_syslog (dnsptr, ipaddr, logstamp, triedlogin) VALUES (?, ?, ?, ?);");
+# FIXME: Add timestamp based constraint.
+my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
+    LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
+    WHERE contacts_report.lastreport IS NULL;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
     die;
 }
-my $sth_query_contact = $dbh->prepare("SELECT COUNT(*) FROM contacts WHERE ipaddr=?;");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
-    die;
-}
-my $sth_insert_contact = $dbh->prepare("INSERT INTO contacts (abuseaddr, ipaddr) VALUES (?, ?);");
+# FIXME: Add timstamp based constraint to suppress already reported abusing IP addresses.
+my $sth_query_syslog = $dbh->prepare("SELECT logstamp, parsed_syslog.ipaddr, dnsptr, triedlogin FROM parsed_syslog
+    LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
+    WHERE contacts.abuseaddr = ? AND usedstamp IS NULL;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
     die;
@@ -161,78 +161,35 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-# Retrieve current year.
-# FIXME: This *will* fail at year's turnaround, when suddenly after December January follows in the same log run.
-#        Ideally, Syslog would include the log entry year.
+# Retrieve current date.
 my $now = localtime();
 
-# Read from stdin, format one line and spit it out again.
-foreach $line ( <STDIN> ) {
-	chomp($line);
-	if ( $line =~ /^(\w{3} [ :0-9]{11}) [\._[:alnum:]]+ postfix\/smtpd\[[0-9]+\]: warning: ([[:print:]]+)\[([[:xdigit:]:.]+)\]: SASL (LOGIN|PLAIN) authentication failed: authentication failure, sasl_username=([[:print:]]+)$/ ) {
-		if (defined($1) && defined($2) && defined($3) && defined($5) ) {
-            # Sort into variables.
-            $dnsptr = $2;
-            $ipaddr = $3;
-            $triedlogin = $5;
-
-            # Format date and time to a timestamp.
-            $syslog_ts = Time::Piece->strptime($now->year . " " . $1, "%Y %b %e %T");
-            $logstamp = $syslog_ts->strftime("%Y-%m-%d %T.000");
-
-            # Write entry to syslog table.
-            syslog(LOG_DEBUG, "SQL: INSERT INTO parsed_syslog (dnsptr, ipaddr, logstamp, triedlogin) VALUES ('%s', '%s', '%s', '%s');",
-                $dnsptr, $ipaddr, $logstamp, $triedlogin);
-            $sth_insert_syslog->execute($dnsptr, $ipaddr, $logstamp, $triedlogin);
-            if ( defined($dbh->errstr) ) {
-                syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
-                next;  # Line
-            }
-
-            # Query database for an associated contact entry. If it doesn't exist, do the lookup.
-            $sth_query_contact->execute($ipaddr);
+# Query database for contacts entry.
+$sth_query_contacts->execute();
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+} else {
+    while ( ($abuseaddr) = $sth_query_contacts->fetchrow ) {
+        if ( defined($dbh->errstr) ) {
+            syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
+        } else {
+            syslog(LOG_DEBUG, "Found abuseaddr '%s'", $abuseaddr);
+            $sth_query_syslog->execute($abuseaddr);
             if ( defined($dbh->errstr) ) {
                 syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
             } else {
-                ($numrows) = $sth_query_contact->fetchrow;
-                if ( defined($dbh->errstr) ) {
-                    syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
-                } else {
-                    if ( $numrows eq 0 ) {
-                        # Reverse IP address bytes and build DNS lookup string.
-                        $ipaddr =~ /^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$/;
-                        $lookup = sprintf("%d.%d.%d.%d.abuse-contacts.abusix.zone", $4, $3, $2, $1);
-
-                        # Do DNS query.
-                        $res = Net::DNS::Resolver->new;
-                        $res_reply = $res->search($lookup, "TXT");
-                        if ( $res_reply ) {
-                            foreach $res_rr ($res_reply->answer) {
-                                if ( $res_rr->type eq 'TXT' ) {
-                                    $abuseaddr = $res_rr->txtdata;
-                                    last; # We're supposed to have just one entry there anyway.
-                                }
-                            }
-                        } else {
-                            syslog(LOG_WARNING, "Abusix-Query: No result for query %s: %s", $lookup, $res->errorstring);
-                        }
-
-                        # Actually insert row into database.
-                        syslog(LOG_DEBUG, "SQL: INSERT INTO contacts (abuseaddr, ipaddr) VALUES ('%s', '%s');",
-                            $abuseaddr, $ipaddr);
-                        $sth_insert_contact->execute($abuseaddr, $ipaddr);
-                        if ( defined($dbh->errstr) ) {
-                            syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
-                            next;  # Line
-                        }
+                # FIXME: Query number of affected rows to skip handling a particular abuseaddr if there are no results.
+                while ( ($logstamp, $ipaddr, $dnsptr, $triedlogin) = $sth_query_syslog->fetchrow ) {
+                    if ( defined($dbh->errstr) ) {
+                        syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
                     } else {
-                        syslog(LOG_DEBUG, "Contact entry for %s already existing.", $ipaddr);
+                        # FIXME: Remove microseconds from logstamp.
+                        syslog(LOG_DEBUG, "Found entry %s %s %s %s", $logstamp, $ipaddr, $dnsptr, $triedlogin);
                     }
                 }
             }
-            $dnsptr = $ipaddr = $triedlogin = undef;
-		}
-	}
+        }
+    }
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,14 +198,11 @@ syslog(LOG_DEBUG, "Finished, cleaning up");
 
 # Further cleanup is handled by the END block implicitly.
 END {
-    if ( $sth_insert_syslog ) {
-        $sth_insert_syslog->finish;
+    if ( $sth_query_contacts ) {
+        $sth_query_contacts->finish;
     }
-    if ( $sth_query_contact ) {
-        $sth_query_contact->finish;
-    }
-    if ( $sth_insert_contact ) {
-        $sth_insert_contact->finish;
+    if ( $sth_query_syslog ) {
+        $sth_query_syslog->finish;
     }
     if ( $dbh ) {
         $dbh->disconnect;
