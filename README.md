@@ -22,6 +22,7 @@ It also updates timestamps in the respective tables accordingly after a particul
 
 ## Files.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
+- `smtp-abuse-report.pl` is the reporting script which sends out automated email to the found abuse email addresses.
 - `.abusedb.sqlite` is the SQLite database which is automatically created by any of the aforementioned scripts if not existing. Note that this is created in the current working directory of the launched scripts. Since those are meant to be run by `cron`, the file is supposed to end up in the user's respective home directory.
 
 ## Installation.
