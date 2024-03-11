@@ -79,8 +79,7 @@ if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
 }
 syslog(LOG_DEBUG, "Init: Connecting to database");
-# FIXME: Convert to absolute path in home directory.
-$dbh = DBI->connect("dbi:SQLite:dbname=.abusedb.sqlite","","");
+$dbh = DBI->connect("dbi:SQLite:dbname=$ENV{HOME}/.abusedb.sqlite", "", "");
 if ( ! defined($dbh) ) {
     if ( $test_db == 1 ) {
         printf(STDERR "Connection to database failed: %s\n", $dbh->errstr);
@@ -101,7 +100,7 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    usestamp TEXT
+    lastused TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
@@ -206,7 +205,7 @@ foreach $line ( <STDIN> ) {
                         # Do DNS query.
                         $res = Net::DNS::Resolver->new;
                         $res_reply = $res->search($lookup, "TXT");
-                        if ( $res_reply ) {
+                        if ( defined($res_reply) ) {
                             foreach $res_rr ($res_reply->answer) {
                                 if ( $res_rr->type eq 'TXT' ) {
                                     $abuseaddr = $res_rr->txtdata;

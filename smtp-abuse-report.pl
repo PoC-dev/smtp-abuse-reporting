@@ -27,8 +27,45 @@ use Time::Piece;
 # This is to be manually incremented on each "publish".
 my $versionstring = '2024-03-10.00';
 
-my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $numrows, $res,
-$res_reply, $res_rr);
+my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $dnsptr, $triedlogin, $logstamp, $numrows);
+
+my $email_text = "Dear Madams and Sirs,
+
+for some weeks now I'm experiencing roughly 200 probes for combinations
+of logins and passwords on my SMTP server leela.pocnet.net
+(87.193.61.142). A number which increased manifold compared to January.
+
+These probes come from many different IP addresses all over the world
+but use common or very similar login names, such as sales\@pocnet.net,
+sales, admin\@pocnet.net, admin, etc. The pattern shown strongly suggests
+these are hosts which have been hijacked and part of a centrally
+orchestrated botnet.
+
+I kindly ask you to have a look at the provided IP address from your
+network, and take appropriate action. My system logged unsuccessful SMTP
+probing as shown in the attached log file. Thank you for your
+understanding.
+
+Please note that I have used the Abusix service to automatically obtain
+a complaint address to a given IP address. Abusix demands attribution to
+their service as follows:
+
+Abusix is neither responsible nor liable for the content or accuracy of
+the abuse being reported in this message. The Abusix Abuse Contact DB
+provided only the abuse contact for the originating network for this
+report. This free abuse@ address, proxy DB service, is built on top of
+the RIR databases. Therefore, if you wish to change or report a
+non-working abuse contact address, please get in touch with the parent
+ASN operator or the appropriate RIR responsible for managing the
+underlying IP address on the abuse contact map. If you have questions
+about the DB, please visit https://abusix.com/contactdb/ or email
+support\@abusix.com.
+
+With kind Regards,
+Patrik Schindler
+Systems Administrator
+Germany
+";
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -72,14 +109,12 @@ if ( defined($options{t}) ) {
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
-
 # Now let the game begin!
 if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
 }
 syslog(LOG_DEBUG, "Init: Connecting to database");
-# FIXME: Convert to absolute path in home directory.
-$dbh = DBI->connect("dbi:SQLite:dbname=.abusedb.sqlite","","");
+$dbh = DBI->connect("dbi:SQLite:dbname=$ENV{HOME}/.abusedb.sqlite", "", "");
 if ( ! defined($dbh) ) {
     if ( $test_db == 1 ) {
         printf(STDERR "Connection to database failed: %s\n", $dbh->errstr);
@@ -100,7 +135,7 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    usestamp TEXT
+    lastused TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
@@ -153,7 +188,7 @@ if ( defined($dbh->errstr) ) {
 # FIXME: Add timstamp based constraint to suppress already reported abusing IP addresses.
 my $sth_query_syslog = $dbh->prepare("SELECT logstamp, parsed_syslog.ipaddr, dnsptr, triedlogin FROM parsed_syslog
     LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-    WHERE contacts.abuseaddr = ? AND usedstamp IS NULL;");
+    WHERE contacts.abuseaddr = ? AND lastused IS NULL;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
     die;
