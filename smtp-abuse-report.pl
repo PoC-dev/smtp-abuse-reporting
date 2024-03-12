@@ -25,47 +25,11 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-10.00';
+my $versionstring = '2024-03-12.00';
 
 my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $dnsptr, $triedlogin, $logstamp, $numrows);
 
-my $email_text = "Dear Madams and Sirs,
-
-for some weeks now I'm experiencing roughly 200 probes for combinations
-of logins and passwords on my SMTP server leela.pocnet.net
-(87.193.61.142). A number which increased manifold compared to January.
-
-These probes come from many different IP addresses all over the world
-but use common or very similar login names, such as sales\@pocnet.net,
-sales, admin\@pocnet.net, admin, etc. The pattern shown strongly suggests
-these are hosts which have been hijacked and part of a centrally
-orchestrated botnet.
-
-I kindly ask you to have a look at the provided IP address from your
-network, and take appropriate action. My system logged unsuccessful SMTP
-probing as shown in the attached log file. Thank you for your
-understanding.
-
-Please note that I have used the Abusix service to automatically obtain
-a complaint address to a given IP address. Abusix demands attribution to
-their service as follows:
-
-Abusix is neither responsible nor liable for the content or accuracy of
-the abuse being reported in this message. The Abusix Abuse Contact DB
-provided only the abuse contact for the originating network for this
-report. This free abuse@ address, proxy DB service, is built on top of
-the RIR databases. Therefore, if you wish to change or report a
-non-working abuse contact address, please get in touch with the parent
-ASN operator or the appropriate RIR responsible for managing the
-underlying IP address on the abuse contact map. If you have questions
-about the DB, please visit https://abusix.com/contactdb/ or email
-support\@abusix.com.
-
-With kind Regards,
-Patrik Schindler
-Systems Administrator
-Germany
-";
+my $email_text = "";
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -178,6 +142,7 @@ if ( defined($dbh->errstr) ) {
 
 # Create predefined statements.
 # FIXME: Add timestamp based constraint.
+# https://www.sqlitetutorial.net/sqlite-date/
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
     WHERE contacts_report.lastreport IS NULL;");
