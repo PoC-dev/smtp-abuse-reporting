@@ -27,8 +27,9 @@ use Time::Piece;
 # This is to be manually incremented on each "publish".
 my $versionstring = '2024-03-12.00';
 
-my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $dnsptr, $triedlogin, $logstamp, $numrows);
+my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows);
 
+# FIXME: Load this from external file. First, check if this file exists and complain if not.
 my $email_text = "";
 
 #-----------------------------------------------------------------------------------------------------------------------------------
@@ -36,7 +37,7 @@ my $email_text = "";
 # See: https://alvinalexander.com/perl/perl-getopts-command-line-options-flags-in-perl/
 
 my %options = ();
-$retval = getopts("dhtv", \%options);
+$retval = getopts("dhntv", \%options);
 
 if ( $retval != 1 ) {
     printf(STDERR "Wrong parameter error.\n\n");
@@ -46,6 +47,7 @@ if ( defined($options{h}) || $retval != 1 ) {
     printf("Usage: abuse-smtp-report(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
+    -n: No send mail, \"dry run\"
     -t: Test database connection and exit
     -v: Show version and exit\n\n");
     printf("Note that logging is done almost entirely via syslog, facility user.\n");
@@ -102,12 +104,12 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     lastused TEXT
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 $dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
@@ -116,12 +118,12 @@ $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
     ipaddr TEXT NOT NULL PRIMARY KEY
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 $dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
@@ -130,63 +132,114 @@ $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
     lastreport TEXT
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 $dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
 
 # Create predefined statements.
-# FIXME: Add timestamp based constraint.
-# https://www.sqlitetutorial.net/sqlite-date/
+
+# Create a list of all contacts which have never been sent a report (contacts_report.lastreport IS NULL), or where the last report
+# has been sent more than a week ago.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport IS NULL;");
+    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < date('now', '-7 days');");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
-# FIXME: Add timstamp based constraint to suppress already reported abusing IP addresses.
-my $sth_query_syslog = $dbh->prepare("SELECT logstamp, parsed_syslog.ipaddr, dnsptr, triedlogin FROM parsed_syslog
-    LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-    WHERE contacts.abuseaddr = ? AND lastused IS NULL;");
+
+# Create a list of all syslog entries for a given abuse address, where 
+# - an abuse address is not too old (less than 14 days) AND,
+# - an abuse address has not yet been reported (lastused IS NULL);
+my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
+WHERE contacts.abuseaddr = ? AND logstamp >= date('now', '-14 days') AND lastused IS NULL;";
+
+my $sth_query_syslog = $dbh->prepare("SELECT logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+
+# Same as above, but just return the number of records.
+my $sth_query_syslog_count = $dbh->prepare("SELECT COUNT(*) " . $query_syslog_common_sql); 
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-# Retrieve current date.
-my $now = localtime();
+format =
+@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<@
+$logstamp, $ipaddr
+.
+
+#format STDOUT_TOP =
+#.
+
+# Lines per Page for the Report Writer.
+$==500000000;
+
 
 # Query database for contacts entry.
 $sth_query_contacts->execute();
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL query_contacts execution error: %s", $dbh->errstr);
+    die;
 } else {
     while ( ($abuseaddr) = $sth_query_contacts->fetchrow ) {
         if ( defined($dbh->errstr) ) {
-            syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
+            syslog(LOG_WARNING, "SQL query_contacts fetch error: %s", $dbh->errstr);
+            next;
         } else {
-            syslog(LOG_DEBUG, "Found abuseaddr '%s'", $abuseaddr);
-            $sth_query_syslog->execute($abuseaddr);
+            # How many syslog entries do we have for the given abuseaddr?
+            $sth_query_syslog_count->execute($abuseaddr);
             if ( defined($dbh->errstr) ) {
-                syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+                syslog(LOG_WARNING, "SQL query_syslog_count execution error: %s, assuming 0 rows have been found", $dbh->errstr);
+                $numrows = 0;
             } else {
-                # FIXME: Query number of affected rows to skip handling a particular abuseaddr if there are no results.
-                while ( ($logstamp, $ipaddr, $dnsptr, $triedlogin) = $sth_query_syslog->fetchrow ) {
-                    if ( defined($dbh->errstr) ) {
-                        syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
-                    } else {
-                        # FIXME: Remove microseconds from logstamp.
-                        syslog(LOG_DEBUG, "Found entry %s %s %s %s", $logstamp, $ipaddr, $dnsptr, $triedlogin);
+                ($numrows) = $sth_query_syslog_count->fetchrow;
+                if ( defined($dbh->errstr) ) {
+                    syslog(LOG_WARNING, "SQL query_syslog_count fetch error: %s, assuming 0 rows have been found", $dbh->errstr);
+                    $numrows = 0;
+                }
+            }
+
+            # Get actual records if we have found some.
+            if ( $numrows gt 0 ) {
+                syslog(LOG_DEBUG, "Got abuseaddr '%s'", $abuseaddr);
+
+                # FIXME: Create mail handle for this abuse report.
+
+                $sth_query_syslog->execute($abuseaddr);
+                if ( defined($dbh->errstr) ) {
+                    syslog(LOG_WARNING, "SQL query_syslog execution error: %s, skipping", $dbh->errstr);
+                    next;
+                } else {
+                    while ( ($logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_WARNING, "SQL query_syslog fetch error: %s, skipping", $dbh->errstr);
+                            next;
+                        } else {
+                            # Remove microseconds from logstamp.
+                            $logstamp =~ /^([0-9-]+ [0-9:]+)\.[0-9]{3}$/;
+                            if ( defined($1) ) {
+                                $logstamp = $1;
+                            }
+                            syslog(LOG_DEBUG, "Found syslog %s %s", $logstamp, $ipaddr);
+
+                            # FIXME: Write records to a reporting file for later attachment.
+                        }
                     }
                 }
+            } else {
+                syslog(LOG_DEBUG, "No recent syslog rows for abuseaddr '%s', skipping", $abuseaddr);
             }
         }
     }
@@ -203,6 +256,9 @@ END {
     }
     if ( $sth_query_syslog ) {
         $sth_query_syslog->finish;
+    }
+    if ( $sth_query_syslog_count ) {
+        $sth_query_syslog_count->finish;
     }
     if ( $dbh ) {
         $dbh->disconnect;
