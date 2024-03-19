@@ -18,6 +18,7 @@ no strict "subs"; # For allowing symbolic names for syslog priorities.
 use warnings;
 use DBI;
 use Getopt::Std;
+use MIME::Lite;
 use Sys::Syslog;
 use Time::Piece;
 
@@ -25,12 +26,12 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-12.00';
+my $versionstring = '2024-03-20.00';
 
-my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows);
+my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh);
 
-# FIXME: Load this from external file. First, check if this file exists and complain if not.
-my $email_text = "";
+# Load mailbody from external file.
+my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -67,6 +68,26 @@ if ( defined($options{d}) ) {
     # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(6);
 }
+
+# First, check if our mail body file exists and complain if not.
+if ( -e $email_text_file ) {
+    open($fh, "<", $email_text_file);
+    if ( $fh ) {
+        syslog(LOG_DEBUG, "Init: Successfully read '%s'", $email_text_file);
+        local($/) = undef;
+        $email_text = <$fh>;
+        close($fh);
+    } else {
+        printf(STDERR "Error opening mail body template file '%s'. Exit.\n", $email_text_file);
+        syslog(LOG_ERR, "Error opening mail body template file '%s'. Exit", $email_text_file);
+        die;
+    }
+} else {
+    printf(STDERR "Mail body template file '%s' does not exist. Exit.\n", $email_text_file);
+    syslog(LOG_ERR, "Mail body template file '%s' does not exist. Exit", $email_text_file);
+    die;
+}
+
 # Test database connection and exit.
 if ( defined($options{t}) ) {
     $test_db = 1;
@@ -193,6 +214,7 @@ if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL query_contacts execution error: %s", $dbh->errstr);
     die;
 } else {
+    # Loop through eligible abuse addresses.
     while ( ($abuseaddr) = $sth_query_contacts->fetchrow ) {
         if ( defined($dbh->errstr) ) {
             syslog(LOG_WARNING, "SQL query_contacts fetch error: %s", $dbh->errstr);
@@ -215,13 +237,28 @@ if ( defined($dbh->errstr) ) {
             if ( $numrows gt 0 ) {
                 syslog(LOG_DEBUG, "Got abuseaddr '%s'", $abuseaddr);
 
-                # FIXME: Create mail handle for this abuse report.
-
+                # Create a report list of abuse addresses.
                 $sth_query_syslog->execute($abuseaddr);
                 if ( defined($dbh->errstr) ) {
                     syslog(LOG_WARNING, "SQL query_syslog execution error: %s, skipping", $dbh->errstr);
                     next;
                 } else {
+                    # Create mail handle for this abuse report.
+                    # https://www.tutorialspoint.com/sending-an-attachment-with-email-using-perl
+                    # https://docstore.mik.ua/orelly/perl4/cook/ch18_10.htm
+                    # https://www.perlmonks.org/?node_id=19430
+                    my $email_handle = MIME::Lite->new(
+                        From    => 'poc@pocnet.net',
+                        To      => 'poc@pocnet.net',
+                        Subject => 'Abuse report: SMTP probes for username/password pairs',
+                        Type    => 'multipart/mixed',
+                    );
+
+                    $email_handle->attach(
+                        Type     => 'text/plain; charset="us-ascii"',
+                        Data     => $email_text,
+                    );
+
                     while ( ($logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
                         if ( defined($dbh->errstr) ) {
                             syslog(LOG_WARNING, "SQL query_syslog fetch error: %s, skipping", $dbh->errstr);
@@ -236,6 +273,16 @@ if ( defined($dbh->errstr) ) {
 
                             # FIXME: Write records to a reporting file for later attachment.
                         }
+                    }
+                    $email_handle->attach(
+                        Type        => 'text/plain; charset="us-ascii"',
+                        Data        => 'This is the report.',
+                        Filename    => 'report.txt',
+                        Disposition => 'attachment',
+                    );
+
+                    if ( $email_handle->send ) {
+                        syslog(LOG_DEBUG, "Email has (hopefully) been sent");
                     }
                 }
             } else {
