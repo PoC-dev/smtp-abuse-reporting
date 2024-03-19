@@ -30,7 +30,7 @@ I recommend copying the scripts to the home directory of a user who's allowed to
 
 Next, install prerequisites. Example for Debian 12:
 ```
-apt-get install libdbd-sqlite3-perl libnet-dns-perl
+apt-get install libdbd-sqlite3-perl libmime-lite-perl libnet-dns-perl
 ```
 You can always just run `./bin/smtp-abuse-syslog.pl` to check for errors about missing perl modules. If there are no more, it waits for data on stdin. Quit with EOF (`Ctrl-D`).
 
