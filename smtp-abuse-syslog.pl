@@ -65,6 +65,7 @@ if ( defined($options{d}) ) {
     # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(6);
 }
+
 # Test database connection and exit.
 if ( defined($options{t}) ) {
     $test_db = 1;
