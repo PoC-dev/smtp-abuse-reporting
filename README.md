@@ -73,6 +73,7 @@ The aforementioned `.abusedb.sqlite` contains the following database tables and 
 
 ## ToDos.
 - Finish the reporting part of this project.
+- Modify cronjob to honor failed perl syslog parser run (return level, backup/restore logtail state file).
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. What to do about this?
 
 ----
