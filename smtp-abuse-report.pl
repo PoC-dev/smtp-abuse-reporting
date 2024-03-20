@@ -34,9 +34,18 @@ my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_ha
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
 
-#-----------------------------------------------------------------------------------------------------------------------------------
 
-# See: https://alvinalexander.com/perl/perl-getopts-command-line-options-flags-in-perl/
+# Prepare output format for the report itself.
+format IP_STAMP_REPORT =
+@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<
+$logstamp, $ipaddr
+.
+
+# Lines per Page for the Report Writer - essentially disabling pagination.
+$==500000000;
+
+#-----------------------------------------------------------------------------------------------------------------------------------
+# Initial preparations.
 
 my %options = ();
 $retval = getopts("dhntv", \%options);
@@ -70,6 +79,7 @@ if ( defined($options{d}) ) {
     setlogmask(6);
 }
 
+
 # First, check if our mail body file exists and complain if not.
 if ( -e $email_text_file ) {
     open($fh, "<", $email_text_file);
@@ -88,6 +98,7 @@ if ( -e $email_text_file ) {
     syslog(LOG_ERR, "Mail body template file '%s' does not exist. Exit", $email_text_file);
     die;
 }
+
 
 # Test database connection and exit.
 if ( defined($options{t}) ) {
@@ -165,6 +176,7 @@ if ( defined($dbh->errstr) ) {
 
 
 # Create predefined statements.
+# Note: This is indepentendent from the definitions in smtp-abuse-syslog.pl.
 
 # Create a list of all contacts which have never been sent a report (contacts_report.lastreport IS NULL), or where the last report
 # has been sent more than a week ago.
@@ -195,20 +207,36 @@ if ( defined($dbh->errstr) ) {
     die;
 }
 
+# Predefined transaction statements.
+my $sth_trans_begin = $dbh->prepare("BEGIN TRANSACTION;");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+my $sth_trans_commit = $dbh->prepare("COMMIT;");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+my $sth_trans_rollback = $dbh->prepare("ROLLBACK;");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+
+# Update timestamps.
+my $sth_update_contacts_report = $dbh->prepare("UPDATE contacts_report SET lastreport=date('now') WHERE abuseaddr IN (?);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET lastused=date('now') WHERE rowid IN (?);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
+
 #-----------------------------------------------------------------------------------------------------------------------------------
-
-# Prepare output format for the report itself.
-format IP_STAMP_REPORT =
-@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<
-$logstamp, $ipaddr
-.
-
-#format STDOUT_TOP =
-#.
-
-# Lines per Page for the Report Writer - essentially disabling pagination.
-$==500000000;
-
 
 # Query database for contacts entry.
 $sth_query_contacts->execute();
@@ -250,7 +278,7 @@ if ( defined($dbh->errstr) ) {
                 } else {
                     # Create mail handle for this abuse report.
                     my $email_handle = MIME::Lite->new(
-                        From    => 'poc@pocnet.net',
+                        From    => 'abuse-report@pocnet.net',
                         To      => 'poc@pocnet.net',
                         Subject => 'Abuse report: SMTP probes for username/password pairs',
                         Type    => 'multipart/mixed',
@@ -263,6 +291,12 @@ if ( defined($dbh->errstr) ) {
 
                     # Open variable as file handle for a given format.
                     open(IP_STAMP_REPORT, ">", \$ip_stamp_report);
+
+                    # Print heading.
+                    # FIXME: Is this how headers are created?
+                    $logstamp = "Timestamp";
+                    $ipaddr = "IP Address";
+                    write(IP_STAMP_REPORT);
 
                     while ( ($rowid, $logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
                         if ( defined($dbh->errstr) ) {
@@ -302,6 +336,7 @@ if ( defined($dbh->errstr) ) {
 
                     # Reset variables.
                     @rowids = undef;
+                    $ip_stamp_report = undef;
                 }
             } else {
                 syslog(LOG_DEBUG, "No recent syslog rows for abuseaddr '%s', skipping", $abuseaddr);
@@ -327,6 +362,21 @@ END {
     }
     if ( $sth_query_syslog_count ) {
         $sth_query_syslog_count->finish;
+    }
+    if ( $sth_trans_begin ) {
+        $sth_trans_begin->finish;
+    }
+    if ( $sth_trans_commit ) {
+        $sth_trans_commit->finish;
+    }
+    if ( $sth_trans_rollback ) {
+        $sth_trans_rollback->finish;
+    }
+    if ( $sth_update_contacts_report ) {
+        $sth_update_contacts_report->finish;
+    }
+    if ( $sth_update_syslog ) {
+        $sth_update_syslog->finish;
     }
     if ( $dbh ) {
         $dbh->disconnect;
