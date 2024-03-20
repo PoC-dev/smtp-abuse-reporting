@@ -28,7 +28,8 @@ use Time::Piece;
 # This is to be manually incremented on each "publish".
 my $versionstring = '2024-03-20.00';
 
-my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh);
+my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
+    @rowids, @abuseaddrs);
 
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
@@ -181,7 +182,7 @@ if ( defined($dbh->errstr) ) {
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
 WHERE contacts.abuseaddr = ? AND logstamp >= date('now', '-14 days') AND lastused IS NULL;";
 
-my $sth_query_syslog = $dbh->prepare("SELECT logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
+my $sth_query_syslog = $dbh->prepare("SELECT parsed_syslog.rowid, logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -196,15 +197,16 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-format =
-@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<@
+# Prepare output format for the report itself.
+format IP_STAMP_REPORT =
+@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<
 $logstamp, $ipaddr
 .
 
 #format STDOUT_TOP =
 #.
 
-# Lines per Page for the Report Writer.
+# Lines per Page for the Report Writer - essentially disabling pagination.
 $==500000000;
 
 
@@ -237,6 +239,9 @@ if ( defined($dbh->errstr) ) {
             if ( $numrows gt 0 ) {
                 syslog(LOG_DEBUG, "Got abuseaddr '%s'", $abuseaddr);
 
+                # Add abuseaddrs to an array, for later update of contacts_report.abuseaddr from split array.
+                push(@abuseaddrs, $abuseaddr);
+
                 # Create a report list of abuse addresses.
                 $sth_query_syslog->execute($abuseaddr);
                 if ( defined($dbh->errstr) ) {
@@ -244,9 +249,6 @@ if ( defined($dbh->errstr) ) {
                     next;
                 } else {
                     # Create mail handle for this abuse report.
-                    # https://www.tutorialspoint.com/sending-an-attachment-with-email-using-perl
-                    # https://docstore.mik.ua/orelly/perl4/cook/ch18_10.htm
-                    # https://www.perlmonks.org/?node_id=19430
                     my $email_handle = MIME::Lite->new(
                         From    => 'poc@pocnet.net',
                         To      => 'poc@pocnet.net',
@@ -259,7 +261,10 @@ if ( defined($dbh->errstr) ) {
                         Data     => $email_text,
                     );
 
-                    while ( ($logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
+                    # Open variable as file handle for a given format.
+                    open(IP_STAMP_REPORT, ">", \$ip_stamp_report);
+
+                    while ( ($rowid, $logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
                         if ( defined($dbh->errstr) ) {
                             syslog(LOG_WARNING, "SQL query_syslog fetch error: %s, skipping", $dbh->errstr);
                             next;
@@ -269,25 +274,41 @@ if ( defined($dbh->errstr) ) {
                             if ( defined($1) ) {
                                 $logstamp = $1;
                             }
-                            syslog(LOG_DEBUG, "Found syslog %s %s", $logstamp, $ipaddr);
 
-                            # FIXME: Write records to a reporting file for later attachment.
+                            # Push rowid to array for later UPDATE.
+                            push(@rowids, $rowid);
+                            syslog(LOG_DEBUG, "Found syslog %s %s (%d)", $logstamp, $ipaddr, $rowid);
+
+                            # Write records to a reporting "file" for later attachment.
+                            write(IP_STAMP_REPORT);
                         }
                     }
+
+                    close(IP_STAMP_REPORT);
+
+                    # Attach virtual file (report in $ip_stamp_report).
                     $email_handle->attach(
                         Type        => 'text/plain; charset="us-ascii"',
-                        Data        => 'This is the report.',
+                        Data        => $ip_stamp_report,
                         Filename    => 'report.txt',
                         Disposition => 'attachment',
                     );
 
+                    # Send this mail.
                     if ( $email_handle->send ) {
                         syslog(LOG_DEBUG, "Email has (hopefully) been sent");
+                        # FIXME: Now, update the records we've touched above with the current time stamp.
                     }
+
+                    # Reset variables.
+                    @rowids = undef;
                 }
             } else {
                 syslog(LOG_DEBUG, "No recent syslog rows for abuseaddr '%s', skipping", $abuseaddr);
             }
+
+        # Reset variables.
+        @abuseaddrs = undef;
         }
     }
 }
