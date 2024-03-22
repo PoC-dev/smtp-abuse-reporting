@@ -18,12 +18,11 @@ The second part (script) is meant to generate reports by aggregating collected d
 
 It also updates timestamps in the respective tables accordingly after a particular report has been sent.
 
-**Note:** The second part is still in early development phase, and not yet functional. The syslog parser is in an usable state, so data collection can commence.
-
 ## Files.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
 - `smtp-abuse-report.pl` is the reporting script which sends out automated email to the found abuse email addresses.
 - `~/.abusedb.sqlite` is the SQLite database which is automatically created by any of the aforementioned scripts if not existing.
+- `~/.abuse-mailbody.txt` is a greeting text expected to be plain us-ascii which is sent as mail body.
 
 ## Installation.
 I recommend copying the scripts to the home directory of a user who's allowed to read log files. For that user, I'm creating a `~/bin` directory to hold this (and other) scripts.
@@ -72,10 +71,9 @@ The aforementioned `.abusedb.sqlite` contains the following database tables and 
 - *contacts_report_idx* on lastreport for quicker SQL handling
 
 ## ToDos.
-- Finish the reporting part of this project.
 - Modify cronjob to honor failed perl syslog parser run (return level, backup/restore logtail state file).
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. What to do about this?
 
 ----
 
-2024-03-12, poc@pocnet.net
+2024-03-22, poc@pocnet.net

@@ -26,14 +26,16 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-20.00';
+my $versionstring = '2024-03-22.00';
 
-my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
-    @rowids, @abuseaddrs);
+# This needs to be a deliverable email address, because you *will* receive bounce messages!
+my $mailfrom = 'abuse-report@pocnet.net';
 
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
 
+my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
+    $tmpstr);
 
 # Prepare output format for the report itself.
 format IP_STAMP_REPORT =
@@ -48,7 +50,7 @@ $==500000000;
 # Initial preparations.
 
 my %options = ();
-$retval = getopts("dhntv", \%options);
+$retval = getopts("dhtv", \%options);
 
 if ( $retval != 1 ) {
     printf(STDERR "Wrong parameter error.\n\n");
@@ -58,7 +60,6 @@ if ( defined($options{h}) || $retval != 1 ) {
     printf("Usage: abuse-smtp-report(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
-    -n: No send mail, \"dry run\"
     -t: Test database connection and exit
     -v: Show version and exit\n\n");
     printf("Note that logging is done almost entirely via syslog, facility user.\n");
@@ -182,7 +183,7 @@ if ( defined($dbh->errstr) ) {
 # has been sent more than a week ago.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < date('now', '-7 days');");
+    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days');");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -192,7 +193,7 @@ if ( defined($dbh->errstr) ) {
 # - an abuse address is not too old (less than 14 days) AND,
 # - an abuse address has not yet been reported (lastused IS NULL);
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-WHERE contacts.abuseaddr = ? AND logstamp >= date('now', '-14 days') AND lastused IS NULL;";
+     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL;";
 
 my $sth_query_syslog = $dbh->prepare("SELECT parsed_syslog.rowid, logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {
@@ -225,12 +226,13 @@ if ( defined($dbh->errstr) ) {
 }
 
 # Update timestamps.
-my $sth_update_contacts_report = $dbh->prepare("UPDATE contacts_report SET lastreport=date('now') WHERE abuseaddr IN (?);");
+my $sth_update_contacts_report = $dbh->prepare("INSERT OR REPLACE INTO contacts_report (abuseaddr, lastreport) VALUES
+    (?, datetime('now'));");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
-my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET lastused=date('now') WHERE rowid IN (?);");
+my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET lastused=datetime('now') WHERE rowid=?;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -267,9 +269,6 @@ if ( defined($dbh->errstr) ) {
             if ( $numrows gt 0 ) {
                 syslog(LOG_DEBUG, "Got abuseaddr '%s'", $abuseaddr);
 
-                # Add abuseaddrs to an array, for later update of contacts_report.abuseaddr from split array.
-                push(@abuseaddrs, $abuseaddr);
-
                 # Create a report list of abuse addresses.
                 $sth_query_syslog->execute($abuseaddr);
                 if ( defined($dbh->errstr) ) {
@@ -278,8 +277,8 @@ if ( defined($dbh->errstr) ) {
                 } else {
                     # Create mail handle for this abuse report.
                     my $email_handle = MIME::Lite->new(
-                        From    => 'abuse-report@pocnet.net',
-                        To      => 'poc@pocnet.net',
+                        From    => $mailfrom,
+                        To      => $abuseaddr,
                         Subject => 'Abuse report: SMTP probes for username/password pairs',
                         Type    => 'multipart/mixed',
                     );
@@ -288,6 +287,20 @@ if ( defined($dbh->errstr) ) {
                         Type     => 'text/plain; charset="us-ascii"',
                         Data     => $email_text,
                     );
+
+                    # Prepare SQL transaction before we do write into the database.
+                    syslog(LOG_DEBUG, "SQL BEGIN TRANSACTION");
+                    $sth_trans_begin->execute();
+                    if ( defined($dbh->errstr) ) {
+                        syslog(LOG_WARNING, "SQL BEGIN TRANSACTION execution error: %s", $dbh->errstr);
+                    }
+
+                    # "Update" contact entry.
+                    syslog(LOG_DEBUG, "SQL updating contact_report entry: %s", $abuseaddr);
+                    $sth_update_contacts_report->execute($abuseaddr);
+                    if ( defined($dbh->errstr) ) {
+                        syslog(LOG_WARNING, "SQL sth_update_contacts_report execution error: %s", $dbh->errstr);
+                    }
 
                     # Open variable as file handle for a given format.
                     open(IP_STAMP_REPORT, ">", \$ip_stamp_report);
@@ -298,6 +311,7 @@ if ( defined($dbh->errstr) ) {
                     $ipaddr = "IP Address";
                     write(IP_STAMP_REPORT);
 
+                    # Collect and format individual syslog entries.
                     while ( ($rowid, $logstamp, $ipaddr) = $sth_query_syslog->fetchrow ) {
                         if ( defined($dbh->errstr) ) {
                             syslog(LOG_WARNING, "SQL query_syslog fetch error: %s, skipping", $dbh->errstr);
@@ -309,12 +323,15 @@ if ( defined($dbh->errstr) ) {
                                 $logstamp = $1;
                             }
 
-                            # Push rowid to array for later UPDATE.
-                            push(@rowids, $rowid);
-                            syslog(LOG_DEBUG, "Found syslog %s %s (%d)", $logstamp, $ipaddr, $rowid);
-
                             # Write records to a reporting "file" for later attachment.
                             write(IP_STAMP_REPORT);
+
+                            # Update individual syslog rows.
+                            syslog(LOG_DEBUG, "SQL updating syslog entry: %d (%s, %s)", $rowid, $logstamp, $ipaddr);
+                            $sth_update_syslog->execute($rowid);
+                            if ( defined($dbh->errstr) ) {
+                                syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
+                            }
                         }
                     }
 
@@ -330,20 +347,27 @@ if ( defined($dbh->errstr) ) {
 
                     # Send this mail.
                     if ( $email_handle->send ) {
-                        syslog(LOG_DEBUG, "Email has (hopefully) been sent");
-                        # FIXME: Now, update the records we've touched above with the current time stamp.
+                        syslog(LOG_DEBUG, "SQL COMMIT: Email has (successfully?) been sent");
+
+                        $sth_trans_commit->execute();
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_WARNING, "SQL COMMIT execution error: %s", $dbh->errstr);
+                        }
+                    } else {
+                        syslog(LOG_WARNING, "SQL ROLLBACK: Error sending report mail");
+
+                        $sth_trans_rollback->execute();
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_WARNING, "SQL ROLLBACK execution error: %s", $dbh->errstr);
+                        }
                     }
 
-                    # Reset variables.
-                    @rowids = undef;
+                    # Reset variable(s).
                     $ip_stamp_report = undef;
                 }
             } else {
                 syslog(LOG_DEBUG, "No recent syslog rows for abuseaddr '%s', skipping", $abuseaddr);
             }
-
-        # Reset variables.
-        @abuseaddrs = undef;
         }
     }
 }
