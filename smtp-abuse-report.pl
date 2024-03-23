@@ -48,7 +48,7 @@ support@abusix.com.';
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
 my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
-    $tmpstr, $dry_run, $email_handle);
+    $tmpstr, $dry_run);
 
 # Prepare output format for the report itself.
 format IP_STAMP_REPORT =
