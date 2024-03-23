@@ -34,14 +34,15 @@ my $mailfrom = 'abuse-report@pocnet.net';
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
 
-my $abusix_disclaimer = 'Abusix is neither responsible nor liable for the content or accuracy of the
-abuse being reported in this message. The Abusix Abuse Contact DB provided only
-the abuse contact for the originating network for this report. This free abuse@
-address, proxy DB service, is built on top of the RIR databases. Therefore, if
-you wish to change or report a non-working abuse contact address, please get in
-touch with the parent ASN operator or the appropriate RIR responsible for
-managing the underlying IP address on the abuse contact map. If you have
-questions about the DB, please visit https://abusix.com/contactdb/ or email
+my $abusix_disclaimer = 'Abusix is neither responsible nor liable for the content or accuracy of
+the abuse being reported in this message. The Abusix Abuse Contact DB
+provided only the abuse contact for the originating network for this
+report. This free abuse@ address, proxy DB service, is built on top of
+the RIR databases. Therefore, if you wish to change or report a
+non-working abuse contact address, please get in touch with the parent
+ASN operator or the appropriate RIR responsible for managing the
+underlying IP address on the abuse contact map. If you have questions
+about the DB, please visit https://abusix.com/contactdb/ or email
 support@abusix.com.';
 
 # Path and name of the database.
