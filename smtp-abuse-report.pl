@@ -26,7 +26,7 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-23.00';
+my $versionstring = '2024-03-24.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
 my $mailfrom = 'abuse-report@pocnet.net';
@@ -87,7 +87,6 @@ if ( defined($options{h}) || $retval != 1 ) {
 # First, check if our mail body file exists and complain if not.
 if ( ! -e $email_text_file ) {
     printf(STDERR "Mail body template file '%s' does not exist. Exit.\n", $email_text_file);
-    syslog(LOG_ERR, "Mail body template file '%s' does not exist. Exit", $email_text_file);
     die;
 }
 
@@ -95,7 +94,6 @@ if ( ! -e $email_text_file ) {
 if ( defined($options{n}) ) {
     if ( ! -e $sqlite_db ) {
         printf(STDERR "SQLite-Database %s not found. Dry run mode set, no changes permitted. Exit.\n", $sqlite_db);
-        syslog(LOG_ERR, "SQLite-Database %s not found. Dry run mode set, no changes permitted. Exit", $sqlite_db);
         die;
     }
     $dry_run = 1;
@@ -118,7 +116,7 @@ if ( defined($options{d}) ) {
     openlog("abuse-smtp-report", "pid", "user");
     # Omit debug messages by default.
     # FIXME: What is the correct way to handle this with symbolic names?
-    setlogmask(6);
+    setlogmask(127);
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
@@ -210,10 +208,10 @@ if ( $dry_run eq 0 ) {
 
 # Create a list of all contacts which have never been sent a report (contacts_report.lastreport IS NULL), or where the last report
 # has been sent more than a week ago.
+# FIXME: `WHERE contacts_report.do_report = 1 AND ...` fails for records not yet having an entry in contacts_report.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport = 1 AND
-    (contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days')) COLLATE NOCASE;");
+    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days') COLLATE NOCASE;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -222,6 +220,7 @@ if ( defined($dbh->errstr) ) {
 # Create a list of all syslog entries for a given abuse address, where 
 # - an abuse address is not too old (less than 14 days) AND,
 # - an abuse address has not yet been reported (lastused IS NULL);
+# FIXME: Implement another report for already reported IP addresses which still show abusive behavior.
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
      WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL COLLATE NOCASE;";
 
@@ -270,6 +269,11 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
+# FIXME: Statistics.
+my $contacts_iter_count = 0;
+my $syslog_rows_sum_count = 0;
+my $sent_mails_count = 0;
+
 # Query database for contacts entry.
 $sth_query_contacts->execute();
 if ( defined($dbh->errstr) ) {
@@ -282,6 +286,8 @@ if ( defined($dbh->errstr) ) {
             syslog(LOG_WARNING, "SQL query_contacts fetch error: %s", $dbh->errstr);
             next;
         } else {
+            $contacts_iter_count++;
+
             # How many syslog entries do we have for the given abuseaddr?
             $sth_query_syslog_count->execute($abuseaddr);
             if ( defined($dbh->errstr) ) {
@@ -294,11 +300,10 @@ if ( defined($dbh->errstr) ) {
                     $numrows = 0;
                 }
             }
+            $syslog_rows_sum_count = $syslog_rows_sum_count + $numrows;
 
             # Get actual records if we have found some.
             if ( $numrows gt 0 ) {
-                syslog(LOG_DEBUG, "Got abuseaddr '%s'", $abuseaddr);
-
                 # Create a report list of abuse addresses.
                 $sth_query_syslog->execute($abuseaddr);
                 if ( defined($dbh->errstr) ) {
@@ -399,7 +404,8 @@ if ( defined($dbh->errstr) ) {
                     if ( $dry_run eq 0 ) {
                         # Send this mail.
                         if ( $email_handle->send ) {
-                            syslog(LOG_DEBUG, "SQL COMMIT: Email has (successfully?) been sent");
+                            $sent_mails_count++;
+                            syslog(LOG_DEBUG, "SQL COMMIT: Email with %d report entries has (successfully?) been sent", $numrows);
 
                             $sth_trans_commit->execute();
                             if ( defined($dbh->errstr) ) {
@@ -415,7 +421,8 @@ if ( defined($dbh->errstr) ) {
                         }
                     } else {
                         $email_handle->send;
-                        syslog(LOG_DEBUG, "Email has (successfully?) been sent");
+                        $sent_mails_count++;
+                        syslog(LOG_DEBUG, "Email with %d report entries has (successfully?) been sent, $numrows");
                     }
 
                     # Reset variable(s).
@@ -426,9 +433,10 @@ if ( defined($dbh->errstr) ) {
     }
 }
 
-#-----------------------------------------------------------------------------------------------------------------------------------
+syslog(LOG_WARNING, "Finished work: handled %d contacts, %d syslog rows and have sent %d emails",
+    $contacts_iter_count, $syslog_rows_sum_count, $sent_mails_count);
 
-syslog(LOG_DEBUG, "Finished, cleaning up");
+#-----------------------------------------------------------------------------------------------------------------------------------
 
 # Further cleanup is handled by the END block implicitly.
 END {

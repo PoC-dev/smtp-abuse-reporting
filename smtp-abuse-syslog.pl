@@ -26,7 +26,7 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-23.00';
+my $versionstring = '2024-03-24.00';
 
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
@@ -64,7 +64,7 @@ if ( defined($options{d}) ) {
     openlog("abuse-smtp-syslog", "pid", "user");
     # Omit debug messages by default.
     # FIXME: What is the correct way to handle this with symbolic names?
-    setlogmask(6);
+    setlogmask(127);
 }
 
 # Test database connection and exit.
