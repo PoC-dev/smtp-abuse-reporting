@@ -154,8 +154,6 @@ if ( ! defined($dbh) ) {
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Create tables, just in case they don't yet exist.
 # Note: This has to be kept in sync with the definitions in smtp-abuse-syslog.pl.
-# FIXME: Create abuseaddr fields (email) case insensitive!
-# https://stackoverflow.com/questions/973541/how-to-set-sqlite3-to-be-case-insensitive-when-string-comparing
 
 if ( $dry_run eq 0 ) {
     $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
