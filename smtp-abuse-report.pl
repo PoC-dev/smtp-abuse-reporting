@@ -26,7 +26,7 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-22.00';
+my $versionstring = '2024-03-23.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
 my $mailfrom = 'abuse-report@pocnet.net';
@@ -197,7 +197,7 @@ if ( defined($dbh->errstr) ) {
 # has been sent more than a week ago.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days');");
+    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days') COLLATE NOCASE;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -207,7 +207,7 @@ if ( defined($dbh->errstr) ) {
 # - an abuse address is not too old (less than 14 days) AND,
 # - an abuse address has not yet been reported (lastused IS NULL);
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL;";
+     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL COLLATE NOCASE;";
 
 my $sth_query_syslog = $dbh->prepare("SELECT parsed_syslog.rowid, logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {
@@ -241,7 +241,7 @@ if ( defined($dbh->errstr) ) {
 
 # Update timestamps.
 my $sth_update_contacts_report = $dbh->prepare("INSERT OR REPLACE INTO contacts_report (abuseaddr, lastreport) VALUES
-    (?, datetime('now'));");
+    (?, datetime('now')) COLLATE NOCASE;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;

@@ -26,7 +26,7 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-10.00';
+my $versionstring = '2024-03-23.00';
 
 my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $numrows, $res,
 $res_reply, $res_rr);
