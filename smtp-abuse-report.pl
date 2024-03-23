@@ -422,7 +422,7 @@ if ( defined($dbh->errstr) ) {
                     } else {
                         $email_handle->send;
                         $sent_mails_count++;
-                        syslog(LOG_DEBUG, "Email with %d report entries has (successfully?) been sent, $numrows");
+                        syslog(LOG_DEBUG, "Email with %d report entries has (successfully?) been sent", $numrows);
                     }
 
                     # Reset variable(s).
