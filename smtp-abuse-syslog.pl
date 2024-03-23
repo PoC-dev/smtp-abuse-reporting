@@ -33,8 +33,6 @@ $res_reply, $res_rr);
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-# See: https://alvinalexander.com/perl/perl-getopts-command-line-options-flags-in-perl/
-
 my %options = ();
 $retval = getopts("dhtv", \%options);
 
@@ -74,7 +72,6 @@ if ( defined($options{t}) ) {
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
-
 # Now let the game begin!
 if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
@@ -104,12 +101,12 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     lastused TEXT
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 $dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
@@ -118,26 +115,28 @@ $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
     ipaddr TEXT NOT NULL PRIMARY KEY
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 $dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
 $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
     abuseaddr TEXT NOT NULL PRIMARY KEY,
-    lastreport TEXT
+    lastreport TEXT,
+    do_report INT NOT NULL DEFAULT 1,
+    comment TEXT
     );");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
-$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport);");
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
 
@@ -145,17 +144,17 @@ if ( defined($dbh->errstr) ) {
 # Create predefined statements.
 my $sth_insert_syslog = $dbh->prepare("INSERT INTO parsed_syslog (dnsptr, ipaddr, logstamp, triedlogin) VALUES (?, ?, ?, ?);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
 my $sth_query_contact = $dbh->prepare("SELECT COUNT(*) FROM contacts WHERE ipaddr=?;");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
 my $sth_insert_contact = $dbh->prepare("INSERT INTO contacts (abuseaddr, ipaddr) VALUES (?, ?);");
 if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL preparation error in: %s", $dbh->errstr);
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
 
@@ -185,18 +184,18 @@ foreach $line ( <STDIN> ) {
                 $dnsptr, $ipaddr, $logstamp, $triedlogin);
             $sth_insert_syslog->execute($dnsptr, $ipaddr, $logstamp, $triedlogin);
             if ( defined($dbh->errstr) ) {
-                syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+                syslog(LOG_WARNING, "SQL insert_syslog execution error: %s", $dbh->errstr);
                 next;  # Line
             }
 
             # Query database for an associated contact entry. If it doesn't exist, do the lookup.
             $sth_query_contact->execute($ipaddr);
             if ( defined($dbh->errstr) ) {
-                syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+                syslog(LOG_WARNING, "SQL query_contact execution error: %s", $dbh->errstr);
             } else {
                 ($numrows) = $sth_query_contact->fetchrow;
                 if ( defined($dbh->errstr) ) {
-                    syslog(LOG_WARNING, "SQL fetch error in: %s", $dbh->errstr);
+                    syslog(LOG_WARNING, "SQL query_contact fetch error: %s", $dbh->errstr);
                 } else {
                     if ( $numrows eq 0 ) {
                         # Reverse IP address bytes and build DNS lookup string.
@@ -222,7 +221,7 @@ foreach $line ( <STDIN> ) {
                             $abuseaddr, $ipaddr);
                         $sth_insert_contact->execute($abuseaddr, $ipaddr);
                         if ( defined($dbh->errstr) ) {
-                            syslog(LOG_WARNING, "SQL execution error in: %s", $dbh->errstr);
+                            syslog(LOG_WARNING, "SQL insert_contact execution error: %s", $dbh->errstr);
                             next;  # Line
                         }
                     } else {

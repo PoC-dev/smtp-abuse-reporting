@@ -175,13 +175,15 @@ if ( defined($dbh->errstr) ) {
 
 $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
     abuseaddr TEXT NOT NULL PRIMARY KEY,
-    lastreport TEXT
+    lastreport TEXT,
+    do_report INT NOT NULL DEFAULT 1,
+    comment TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
 }
-$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport);");
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
     die;
