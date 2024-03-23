@@ -34,6 +34,16 @@ my $mailfrom = 'abuse-report@pocnet.net';
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
 
+my $abusix_disclaimer = 'Abusix is neither responsible nor liable for the content or accuracy of the
+abuse being reported in this message. The Abusix Abuse Contact DB provided only
+the abuse contact for the originating network for this report. This free abuse@
+address, proxy DB service, is built on top of the RIR databases. Therefore, if
+you wish to change or report a non-working abuse contact address, please get in
+touch with the parent ASN operator or the appropriate RIR responsible for
+managing the underlying IP address on the abuse contact map. If you have
+questions about the DB, please visit https://abusix.com/contactdb/ or email
+support@abusix.com.';
+
 my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
     $tmpstr);
 
@@ -129,6 +139,8 @@ if ( ! defined($dbh) ) {
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Create tables, just in case they don't yet exist.
 # Note: This has to be kept in sync with the definitions in smtp-abuse-syslog.pl.
+# FIXME: Create abuseaddr fields (email) case insensitive!
+# https://stackoverflow.com/questions/973541/how-to-set-sqlite3-to-be-case-insensitive-when-string-comparing
 
 $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     dnsptr TEXT NOT NULL,
@@ -277,15 +289,15 @@ if ( defined($dbh->errstr) ) {
                 } else {
                     # Create mail handle for this abuse report.
                     my $email_handle = MIME::Lite->new(
-                        From    => $mailfrom,
-                        To      => $abuseaddr,
-                        Subject => 'Abuse report: SMTP probes for username/password pairs',
-                        Type    => 'multipart/mixed',
+                        From       => $mailfrom,
+                        To         => $abuseaddr,
+                        Subject    => 'Abuse report: SMTP probes for username/password pairs',
+                        Type       => 'multipart/mixed',
                     );
 
                     $email_handle->attach(
-                        Type     => 'text/plain; charset="us-ascii"',
-                        Data     => $email_text,
+                        Type        => 'text/plain; charset="us-ascii"',
+                        Data        => $email_text,
                     );
 
                     # Prepare SQL transaction before we do write into the database.
@@ -342,6 +354,13 @@ if ( defined($dbh->errstr) ) {
                         Type        => 'text/plain; charset="us-ascii"',
                         Data        => $ip_stamp_report,
                         Filename    => 'report.txt',
+                        Disposition => 'attachment',
+                    );
+
+                    $email_handle->attach(
+                        Type        => 'text/plain; charset="us-ascii"',
+                        Data        => $abusix_disclaimer,
+                        Filename    => 'abusix_disclaimer.txt',
                         Disposition => 'attachment',
                     );
 
