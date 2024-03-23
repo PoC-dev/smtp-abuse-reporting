@@ -44,8 +44,11 @@ managing the underlying IP address on the abuse contact map. If you have
 questions about the DB, please visit https://abusix.com/contactdb/ or email
 support@abusix.com.';
 
+# Path and name of the database.
+my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
+
 my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
-    $tmpstr);
+    $tmpstr, $dry_run, $email_handle);
 
 # Prepare output format for the report itself.
 format IP_STAMP_REPORT =
@@ -60,7 +63,7 @@ $==500000000;
 # Initial preparations.
 
 my %options = ();
-$retval = getopts("dhtv", \%options);
+$retval = getopts("dhntv", \%options);
 
 if ( $retval != 1 ) {
     printf(STDERR "Wrong parameter error.\n\n");
@@ -70,6 +73,7 @@ if ( defined($options{h}) || $retval != 1 ) {
     printf("Usage: abuse-smtp-report(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
+    -n: \"dry run\" mode: don't update database, send mail to sender address
     -t: Test database connection and exit
     -v: Show version and exit\n\n");
     printf("Note that logging is done almost entirely via syslog, facility user.\n");
@@ -77,6 +81,33 @@ if ( defined($options{h}) || $retval != 1 ) {
 } elsif ( defined($options{v}) ) {
     printf('Version %s\n', $versionstring);
     exit(0);
+}
+
+
+# First, check if our mail body file exists and complain if not.
+if ( ! -e $email_text_file ) {
+    printf(STDERR "Mail body template file '%s' does not exist. Exit.\n", $email_text_file);
+    syslog(LOG_ERR, "Mail body template file '%s' does not exist. Exit", $email_text_file);
+    die;
+}
+
+# Dry run (do not update database, do not send mail).
+if ( defined($options{n}) ) {
+    if ( ! -e $sqlite_db ) {
+        printf(STDERR "SQLite-Database %s not found. Dry run mode set, no changes permitted. Exit.\n", $sqlite_db);
+        syslog(LOG_ERR, "SQLite-Database %s not found. Dry run mode set, no changes permitted. Exit", $sqlite_db);
+        die;
+    }
+    $dry_run = 1;
+} else {
+    $dry_run = 0;
+}
+
+# Test database connection and exit.
+if ( defined($options{t}) ) {
+    $test_db = 1;
+} else {
+    $test_db = 0;
 }
 
 
@@ -90,41 +121,25 @@ if ( defined($options{d}) ) {
     setlogmask(6);
 }
 
-
-# First, check if our mail body file exists and complain if not.
-if ( -e $email_text_file ) {
-    open($fh, "<", $email_text_file);
-    if ( $fh ) {
-        syslog(LOG_DEBUG, "Init: Successfully read '%s'", $email_text_file);
-        local($/) = undef;
-        $email_text = <$fh>;
-        close($fh);
-    } else {
-        printf(STDERR "Error opening mail body template file '%s'. Exit.\n", $email_text_file);
-        syslog(LOG_ERR, "Error opening mail body template file '%s'. Exit", $email_text_file);
-        die;
-    }
+#-----------------------------------------------------------------------------------------------------------------------------------
+# Read our mail body file.
+open($fh, "<", $email_text_file);
+if ( $fh ) {
+    syslog(LOG_DEBUG, "Init: Successfully read '%s'", $email_text_file);
+    local($/) = undef;
+    $email_text = <$fh>;
+    close($fh);
 } else {
-    printf(STDERR "Mail body template file '%s' does not exist. Exit.\n", $email_text_file);
-    syslog(LOG_ERR, "Mail body template file '%s' does not exist. Exit", $email_text_file);
+    syslog(LOG_ERR, "Error opening mail body template file '%s'. Exit", $email_text_file);
     die;
 }
 
-
-# Test database connection and exit.
-if ( defined($options{t}) ) {
-    $test_db = 1;
-} else {
-    $test_db = 0;
-}
-
-#-----------------------------------------------------------------------------------------------------------------------------------
 # Now let the game begin!
 if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
 }
 syslog(LOG_DEBUG, "Init: Connecting to database");
-$dbh = DBI->connect("dbi:SQLite:dbname=$ENV{HOME}/.abusedb.sqlite", "", "");
+$dbh = DBI->connect("dbi:SQLite:dbname=$sqlite_db", "", "");
 if ( ! defined($dbh) ) {
     if ( $test_db == 1 ) {
         printf(STDERR "Connection to database failed: %s\n", $dbh->errstr);
@@ -142,51 +157,53 @@ if ( ! defined($dbh) ) {
 # FIXME: Create abuseaddr fields (email) case insensitive!
 # https://stackoverflow.com/questions/973541/how-to-set-sqlite3-to-be-case-insensitive-when-string-comparing
 
-$dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
-    dnsptr TEXT NOT NULL,
-    ipaddr TEXT NOT NULL,
-    logstamp TEXT NOT NULL,
-    triedlogin TEXT NOT NULL,
-    lastused TEXT
-    );");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
-}
-$dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
-}
+if ( $dry_run eq 0 ) {
+    $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
+        dnsptr TEXT NOT NULL,
+        ipaddr TEXT NOT NULL,
+        logstamp TEXT NOT NULL,
+        triedlogin TEXT NOT NULL,
+        lastused TEXT
+        );");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
+    $dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
 
-$dbh->do("CREATE TABLE IF NOT EXISTS contacts (
-    abuseaddr TEXT,
-    ipaddr TEXT NOT NULL PRIMARY KEY
-    );");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
-}
-$dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
-}
+    $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
+        abuseaddr TEXT,
+        ipaddr TEXT NOT NULL PRIMARY KEY
+        );");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
+    $dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
 
-$dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
-    abuseaddr TEXT NOT NULL PRIMARY KEY,
-    lastreport TEXT,
-    do_report INT NOT NULL DEFAULT 1,
-    comment TEXT
-    );");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
-}
-$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
-if ( defined($dbh->errstr) ) {
-    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-    die;
+    $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
+        abuseaddr TEXT NOT NULL PRIMARY KEY,
+        lastreport TEXT,
+        do_report INT NOT NULL DEFAULT 1,
+        comment TEXT
+        );");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
+    $dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
+    if ( defined($dbh->errstr) ) {
+        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+        die;
+    }
 }
 
 
@@ -197,7 +214,8 @@ if ( defined($dbh->errstr) ) {
 # has been sent more than a week ago.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days') COLLATE NOCASE;");
+    WHERE contacts_report.lastreport = 1 AND
+    (contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days')) COLLATE NOCASE;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -241,7 +259,7 @@ if ( defined($dbh->errstr) ) {
 
 # Update timestamps.
 my $sth_update_contacts_report = $dbh->prepare("INSERT OR REPLACE INTO contacts_report (abuseaddr, lastreport) VALUES
-    (?, datetime('now')) COLLATE NOCASE;");
+    (?, datetime('now'));");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -290,30 +308,42 @@ if ( defined($dbh->errstr) ) {
                     next;
                 } else {
                     # Create mail handle for this abuse report.
-                    my $email_handle = MIME::Lite->new(
-                        From       => $mailfrom,
-                        To         => $abuseaddr,
-                        Subject    => 'Abuse report: SMTP probes for username/password pairs',
-                        Type       => 'multipart/mixed',
-                    );
+                    if ( $dry_run eq 0 ) {
+                        $email_handle = MIME::Lite->new(
+                            From       => $mailfrom,
+                            To         => $abuseaddr,
+                            CC         => $mailfrom,
+                            Subject    => 'Abuse report: SMTP probes for username/password pairs',
+                            Type       => 'multipart/mixed',
+                        );
+                    } else {
+                        $email_handle = MIME::Lite->new(
+                            From       => $mailfrom,
+                            To         => $mailfrom,
+                            Subject    => 'Abuse report: SMTP probes for username/password pairs',
+                            Type       => 'multipart/mixed',
+                        );
+                    }
 
                     $email_handle->attach(
                         Type        => 'text/plain; charset="us-ascii"',
                         Data        => $email_text,
                     );
 
-                    # Prepare SQL transaction before we do write into the database.
-                    syslog(LOG_DEBUG, "SQL BEGIN TRANSACTION");
-                    $sth_trans_begin->execute();
-                    if ( defined($dbh->errstr) ) {
-                        syslog(LOG_WARNING, "SQL BEGIN TRANSACTION execution error: %s", $dbh->errstr);
-                    }
+                    if ( $dry_run eq 0 ) {
+                        # Prepare SQL transaction before we do write into the database.
+                        syslog(LOG_DEBUG, "SQL BEGIN TRANSACTION");
+                        $sth_trans_begin->execute();
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_WARNING, "SQL BEGIN TRANSACTION execution error: %s", $dbh->errstr);
+                        }
 
-                    # "Update" contact entry.
-                    syslog(LOG_DEBUG, "SQL updating contact_report entry: %s", $abuseaddr);
-                    $sth_update_contacts_report->execute($abuseaddr);
-                    if ( defined($dbh->errstr) ) {
-                        syslog(LOG_WARNING, "SQL sth_update_contacts_report execution error: %s", $dbh->errstr);
+                        # "Update" contact entry.
+                        syslog(LOG_DEBUG, "SQL updating contact_report entry: %s", $abuseaddr);
+                        $sth_update_contacts_report->execute($abuseaddr);
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_WARNING, "SQL sth_update_contacts_report execution error: %s", $dbh->errstr);
+                        }
                     }
 
                     # Open variable as file handle for a given format.
@@ -340,11 +370,13 @@ if ( defined($dbh->errstr) ) {
                             # Write records to a reporting "file" for later attachment.
                             write(IP_STAMP_REPORT);
 
-                            # Update individual syslog rows.
-                            syslog(LOG_DEBUG, "SQL updating syslog entry: %d (%s, %s)", $rowid, $logstamp, $ipaddr);
-                            $sth_update_syslog->execute($rowid);
-                            if ( defined($dbh->errstr) ) {
-                                syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
+                            if ( $dry_run eq 0 ) {
+                                # Update individual syslog rows.
+                                syslog(LOG_DEBUG, "SQL updating syslog entry %d: (%s, %s)", $rowid, $logstamp, $ipaddr);
+                                $sth_update_syslog->execute($rowid);
+                                if ( defined($dbh->errstr) ) {
+                                    syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
+                                }
                             }
                         }
                     }
@@ -366,28 +398,31 @@ if ( defined($dbh->errstr) ) {
                         Disposition => 'attachment',
                     );
 
-                    # Send this mail.
-                    if ( $email_handle->send ) {
-                        syslog(LOG_DEBUG, "SQL COMMIT: Email has (successfully?) been sent");
+                    if ( $dry_run eq 0 ) {
+                        # Send this mail.
+                        if ( $email_handle->send ) {
+                            syslog(LOG_DEBUG, "SQL COMMIT: Email has (successfully?) been sent");
 
-                        $sth_trans_commit->execute();
-                        if ( defined($dbh->errstr) ) {
-                            syslog(LOG_WARNING, "SQL COMMIT execution error: %s", $dbh->errstr);
+                            $sth_trans_commit->execute();
+                            if ( defined($dbh->errstr) ) {
+                                syslog(LOG_WARNING, "SQL COMMIT execution error: %s", $dbh->errstr);
+                            }
+                        } else {
+                            syslog(LOG_WARNING, "SQL ROLLBACK: Error sending report mail");
+
+                            $sth_trans_rollback->execute();
+                            if ( defined($dbh->errstr) ) {
+                                syslog(LOG_WARNING, "SQL ROLLBACK execution error: %s", $dbh->errstr);
+                            }
                         }
                     } else {
-                        syslog(LOG_WARNING, "SQL ROLLBACK: Error sending report mail");
-
-                        $sth_trans_rollback->execute();
-                        if ( defined($dbh->errstr) ) {
-                            syslog(LOG_WARNING, "SQL ROLLBACK execution error: %s", $dbh->errstr);
-                        }
+                        $email_handle->send;
+                        syslog(LOG_DEBUG, "Email has (successfully?) been sent");
                     }
 
                     # Reset variable(s).
                     $ip_stamp_report = undef;
                 }
-            } else {
-                syslog(LOG_DEBUG, "No recent syslog rows for abuseaddr '%s', skipping", $abuseaddr);
             }
         }
     }

@@ -1,8 +1,8 @@
-This is a collection of Perl scripts to automate the reporting of abusing IP addresses to the respective responsible contact address. I haven't found a readymade solution for my particular scenario which shows roughly 200 probes for combinations of logins and passwords on my SMTP server. A number which increased manifold compared to January 2024.
+This is a collection of Perl scripts to automate the reporting of abusing IP addresses to the respective responsible contact address. I haven't found a readymade solution for my particular scenario which shows many probes a day for combinations of logins and passwords on my SMTP server. A number which increased manifold compared to January 2024.
 
 These probes come from many different IP addresses all over the world but use common or very similar login names. The pattern shown strongly suggests these are hosts which have been hijacked and part of a centrally orchestrated botnet.
 
-Just blocking them with Fail2Ban is not feasible. A given IP address probes not very frequently.
+Just blocking them with Fail2Ban is not feasible. A given IP address probes not very frequently. A better approach would be to send appropriate reports to the respective abuse addresses.
 
 ## Description.
 The first part (script) collects log data:
@@ -14,7 +14,8 @@ The first part (script) collects log data:
 
 The second part (script) is meant to generate reports by aggregating collected data to the derived abuse contact address. It takes into account:
 - New IP addresses since the last report has been sent,
-- a reminder about addresses which already have been reported earlier but still commit abuse.
+- a reminder about addresses which already have been reported earlier but still commit abuse,
+- a manual *do_report* flag for a given contact adress; could be set to 0 manually and a reason given in the comment field.
 
 It also updates timestamps in the respective tables accordingly after a particular report has been sent.
 
@@ -47,6 +48,7 @@ Both scripts support command line options:
 ```
 -d: Enable debug mode
 -h: Show help and exit
+-n: "dry run" mode: don't update database, send mail to sender address
 -t: Test database connection and exit
 -v: Show version and exit
 ```
@@ -68,12 +70,15 @@ The aforementioned `.abusedb.sqlite` contains the following database tables and 
 - *contacts_report* -- keeping track when a given abuse contact address received a report
   - abuseaddr -- abuse contact address, see also table *contacts*
   - lastreport -- timestamp when this particular contact last received a report
+  - do_report -- default 1, set to 0 if no report should be sent to this particular address
+  - comment -- should be used for notes regarding do_report
 - *contacts_report_idx* on lastreport for quicker SQL handling
 
 ## ToDos.
 - Modify cronjob to honor failed perl syslog parser run (return level, backup/restore logtail state file).
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. What to do about this?
+- Probaby introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty (= prevent too many complaints in a short time).
 
 ----
 
-2024-03-22, poc@pocnet.net
+2024-03-23, poc@pocnet.net

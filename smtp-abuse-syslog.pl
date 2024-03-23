@@ -28,8 +28,11 @@ use Net::DNS;
 # This is to be manually incremented on each "publish".
 my $versionstring = '2024-03-23.00';
 
+# Path and name of the database.
+my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
+
 my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $numrows, $res,
-$res_reply, $res_rr);
+    $res_reply, $res_rr);
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -77,7 +80,7 @@ if ( $test_db == 1 ) {
     printf("Connecting to database...\n");
 }
 syslog(LOG_DEBUG, "Init: Connecting to database");
-$dbh = DBI->connect("dbi:SQLite:dbname=$ENV{HOME}/.abusedb.sqlite", "", "");
+$dbh = DBI->connect("dbi:SQLite:dbname=$sqlite_db", "", "");
 if ( ! defined($dbh) ) {
     if ( $test_db == 1 ) {
         printf(STDERR "Connection to database failed: %s\n", $dbh->errstr);
