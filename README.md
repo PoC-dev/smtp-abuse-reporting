@@ -83,18 +83,16 @@ The second part (script) is meant to generate reports by aggregating collected d
 - New IP address entries since the last report has been sent — there might be duplicates to already reported ones,
 - a one week penalty time for each contact address to not flood the responsible persons with complaint emails — not yet reported syslog entries stay eligible to be reported.
 
-It also updates timestamps in the respective tables accordingly after a particular report has been sent. This should prevent reporting old entries. Dry run mode (`-n`) prevents writes to the database for testing purposes.
+It also updates timestamps in the respective tables accordingly after a particular report has been sent. This should prevent reporting already reported entries. Dry run mode (`-n`) prevents writes to the database for testing purposes.
 
 Reports contain:
 - Static text for the mailbody as shown above,
 - the Abusix disclaimer as attachment,
-- the actual tabular report, containing
-   - timestamp of the local time zone,
+- the actual tabular report as attachment, containing
+   - timestamp according to the local time zone,
    - abusing IP address.
 
-Dry run mode (`-n`) sends mails to the configured local sender's address instead of the database derived abuse contact. This primarily meant to see if reports make sense.
-
-Otherwise, reports are sent to the database derived abuse contact, and CC'ed to the configured local sender's address.
+Dry run mode (`-n`) sends mails to the configured local sender's address instead of the database derived abuse contact. This primarily meant to see if reports make sense. Otherwise, reports are sent to the database derived abuse contact, and CC'ed to the configured local sender's address.
 
 The local sender address is derived from the static string "abuse-report@", followed by the local domain name of the host. See line 33 of `smtp-abuse-report.pl`. Adjust as needed.
 
@@ -116,22 +114,22 @@ Note that each run logs some statistics to syslog for easier observation that th
 Expect around 25% bounce messages for various reasons, such as:
 - automatic "thank you for your email" replies, sometimes with a general (probably baseless) request for more information
 - *out of office* replies
+- automatic reply that the message won't be handled and one should undergo a manual process based on a web browser form to report abuse (probably violating RIR policy)
 - generally underliverable messages for reasons such as
    - inbox over quota
    - user unknown (directly or expanded from distribution configuration)
    - administratively prohibited to receive mails
    - tagged as spam
    - badly configured redirects leading to SPF errors for the initial sending domain
-   - non-existant domains
-   - automatic reply that the message won't be handled and one should undergo a manual process based on a web browser form to report
+   - non-existent domains
 
-Currently, I'm manually evaluating those, in turn setting *contacts_report.lastreport* to `NULL` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
+Currently, I'm manually evaluating these messages, in turn setting *contacts_report.lastreport* to `NULL` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
 
 An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix and will try to contact them to find a resolution.
 
 #### Planned for the future.
-- A reminder about addresses which already have been reported earlier but still commit abuse. This means a filter should be implemented that sorts out not yet reported IP addresses which have already been reported in the past. As such this reminder is implicitly already working but without pointing out that a particular address has been reported before. Is it worth the effort?
-- a manual *do_report* flag for a given contact adress; could be set to 0 manually and a reason given in the comment field. Both fields already exist but are not yet used by the scripts. This is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides reporting those to the respective RIR in charge.
+- A reminder about addresses which already have been reported earlier but still commit abuse. This means a filter should be implemented that sorts out not already reported IP addresses from the current report. As such this reminder is implicitly already working but without pointing out that a particular address has been reported before. Is it worth the effort?
+- a *do_report* flag to be manually adjusted for a given contact adress; could be set to 0 and a reason hereunto given in the comment field. Both fields already exist but are not yet used by the scripts. This is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides reporting those to the respective RIR in charge.
 
 ## Installation.
 I recommend cloning the repository to the home directory of a user who is allowed to read log files.
@@ -149,21 +147,21 @@ These are not part of the Perl standard modules, at least in Debian. Example for
 ```
 apt-get install libdbd-sqlite3-perl libmime-lite-perl libnet-dns-perl
 ```
-You can always just run `./bin/smtp-abuse-syslog.pl`, or `smtp-abuse-report.pl` to check for errors about missing perl modules. If there are no more, the former waits for data on stdin. Quit with EOF (`Ctrl-D`).
+You can always just run `./smtp-abuse-syslog.pl`, or `./smtp-abuse-report.pl -n` to check for errors about missing perl modules. If there are no more, the former waits for data on stdin. Quit with EOF (`Ctrl-D`).
 
 Next, use the archived logs to fill the database with inital data:
 ```
-( zcat /var/log/mail.log.4.gz /var/log/mail.log.3.gz /var/log/mail.log.2.gz; cat /var/log/mail.log.1; ) |~/bin/smtp-abuse-syslog.pl -d
+( zcat /var/log/mail.log.4.gz /var/log/mail.log.3.gz /var/log/mail.log.2.gz; cat /var/log/mail.log.1; ) |~/smtp-abuse-reporting/smtp-abuse-syslog.pl -d
 ```
 Finally, create a cronjob like the following:
 ```
-51 * * * *  /usr/sbin/logtail -f /var/log/mail.log -o .smtp-abuse-syslog-offset |bin/smtp-abuse-syslog.pl
+51 * * * *  /usr/sbin/logtail -f /var/log/mail.log -o .smtp-abuse-syslog-offset |smtp-abuse-reporting/smtp-abuse-syslog.pl
 ```
-Because there is not yet a *~/.smtp-abuse-syslog-offset* file, the omitted current log file will be parsed entirely with the next cron run, and entries added. With that, there is no opportunity to miss any entries.
+Because there is not yet a *~/.smtp-abuse-syslog-offset* file, the omitted current log file will be parsed entirely with the next cron run, and entries added accordingly. With that, there is no opportunity to miss any entries.
 
 After testing with `-dn` as described above, you can add a daily cron job to actually send complaint emails accordingly.
 ```
-53 8 * * *  bin/smtp-abuse-report.pl
+53 8 * * *  smtp-abuse-reporting/smtp-abuse-report.pl
 ```
 
 ## Database layout.
@@ -188,9 +186,11 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
 
 Fields with common names but in distinct tables are meant to be used as a relation (SQL `JOIN`).
 
-Fields designated as *not used* are not used by the reporter script and are meant to provide more information to the user, or are reserved for future use.
+Fields designated as *not used* are not queried by the reporter script and are meant to provide more information to the user, or are reserved for future use.
 
 ## ToDos.
+- Generate report with timestamps in UTC.
+- Fix FIXME entries in the scripts.
 - Modify cronjob to honor `smtp-abuse-syslog.pl` return level to backup/restore logtail's state file accordingly.
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. Should be worked around by a manual handler watching a transition from Month 12 to Month 1, in turn forcing `$year++`.
 - Probaby introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.

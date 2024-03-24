@@ -211,6 +211,7 @@ if ( $dry_run eq 0 ) {
 # Create a list of all contacts which have never been sent a report (contacts_report.lastreport IS NULL), or where the last report
 # has been sent more than a week ago.
 # FIXME: `WHERE contacts_report.do_report = 1 AND ...` fails for records not yet having an entry in contacts_report.
+#        Probably use some other flavor instead of a standard SQL `JOIN`.
 my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
     WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days') COLLATE NOCASE;");
@@ -222,7 +223,6 @@ if ( defined($dbh->errstr) ) {
 # Create a list of all syslog entries for a given abuse address, where 
 # - an abuse address is not too old (less than 14 days) AND,
 # - an abuse address has not yet been reported (lastused IS NULL);
-# FIXME: Implement another report for already reported IP addresses which still show abusive behavior.
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
      WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL COLLATE NOCASE;";
 
@@ -271,7 +271,7 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-# FIXME: Statistics.
+# Statistics.
 my $contacts_iter_count = 0;
 my $syslog_rows_sum_count = 0;
 my $sent_mails_count = 0;
@@ -355,7 +355,7 @@ if ( defined($dbh->errstr) ) {
                     open(IP_STAMP_REPORT, ">", \$ip_stamp_report);
 
                     # Print heading.
-                    # FIXME: Is this how headers are created?
+                    # FIXME: Is this how headers are created proper?
                     $logstamp = "Timestamp";
                     $ipaddr = "IP Address";
                     write(IP_STAMP_REPORT);
