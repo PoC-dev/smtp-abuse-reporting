@@ -155,53 +155,51 @@ if ( ! defined($dbh) ) {
 # Create tables, just in case they don't yet exist.
 # Note: This has to be kept in sync with the definitions in smtp-abuse-syslog.pl.
 
-if ( $dry_run eq 0 ) {
-    $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
-        dnsptr TEXT NOT NULL,
-        ipaddr TEXT NOT NULL,
-        logstamp TEXT NOT NULL,
-        triedlogin TEXT NOT NULL,
-        lastused TEXT
-        );");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
-    $dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
+$dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
+    dnsptr TEXT NOT NULL,
+    ipaddr TEXT NOT NULL,
+    logstamp TEXT NOT NULL,
+    triedlogin TEXT NOT NULL,
+    lastused TEXT
+    );");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
+}
+$dbh->do("CREATE INDEX IF NOT EXISTS parsed_syslog_idx ON parsed_syslog (logstamp, ipaddr, triedlogin);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
+}
 
-    $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
-        abuseaddr TEXT,
-        ipaddr TEXT NOT NULL PRIMARY KEY
-        );");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
-    $dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
+$dbh->do("CREATE TABLE IF NOT EXISTS contacts (
+    abuseaddr TEXT,
+    ipaddr TEXT NOT NULL PRIMARY KEY
+    );");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
+}
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_idx ON contacts (abuseaddr);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
+}
 
-    $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
-        abuseaddr TEXT NOT NULL PRIMARY KEY,
-        lastreport TEXT,
-        do_report INT NOT NULL DEFAULT 1,
-        comment TEXT
-        );");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
-    $dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
-    if ( defined($dbh->errstr) ) {
-        syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
-        die;
-    }
+$dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
+    abuseaddr TEXT NOT NULL PRIMARY KEY,
+    lastreport TEXT,
+    do_report INT NOT NULL DEFAULT 1,
+    comment TEXT
+    );");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
+}
+$dbh->do("CREATE INDEX IF NOT EXISTS contacts_report_idx ON contacts_report (lastreport, do_report);");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
+    die;
 }
 
 

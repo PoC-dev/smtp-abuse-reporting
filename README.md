@@ -83,7 +83,7 @@ The second part (script) is meant to generate reports by aggregating collected d
 - New IP address entries since the last report has been sent — there might be duplicates to already reported ones,
 - a one week penalty time for each contact address to not flood the responsible persons with complaint emails — not yet reported syslog entries stay eligible to be reported.
 
-It also updates timestamps in the respective tables accordingly after a particular report has been sent. This should prevent reporting already reported entries. Dry run mode (`-n`) prevents writes to the database for testing purposes.
+It also updates timestamps in the respective tables accordingly after a particular report has been sent. This should prevent reporting already reported entries. Dry run mode (`-n`) prevents writes to the database for testing purposes. However, a not existing database is created even in dry run mode.
 
 Reports contain:
 - Static text for the mailbody as shown above,
