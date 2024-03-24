@@ -128,7 +128,7 @@ Currently, I'm manually evaluating these messages, in turn setting *contacts_rep
 An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix and will try to contact them to find a resolution.
 
 #### Planned for the future.
-- A reminder about addresses which already have been reported earlier but still commit abuse. This means a filter should be implemented that sorts out not already reported IP addresses from the current report. As such this reminder is implicitly already working but without pointing out that a particular address has been reported before. Is it worth the effort?
+- A reminder about addresses which already have been reported earlier but still commit abuse. This means a filter should be implemented that sorts out already reported IP addresses from the current report. As such this reminder is implicitly already working but without pointing out that a particular address has been reported before. Is it worth the effort?
 - a *do_report* flag to be manually adjusted for a given contact adress; could be set to 0 and a reason hereunto given in the comment field. Both fields already exist but are not yet used by the scripts. This is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides reporting those to the respective RIR in charge.
 
 ## Installation.
