@@ -19,6 +19,7 @@ use warnings;
 use DBI;
 use Getopt::Std;
 use MIME::Lite;
+use Net::Domain qw(hostdomain);
 use Sys::Syslog;
 use Time::Piece;
 
@@ -29,7 +30,7 @@ use Time::Piece;
 my $versionstring = '2024-03-24.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
-my $mailfrom = 'abuse-report@pocnet.net';
+my $mailfrom = 'abuse-report@' . hostdomain();
 
 # Load mailbody from external file.
 my $email_text_file = "$ENV{HOME}/.abuse-mailbody.txt";
