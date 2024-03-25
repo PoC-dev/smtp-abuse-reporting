@@ -196,6 +196,7 @@ Fields designated as *not used* are not queried by the reporter script and are m
 - Probably introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.
 - honor *do_report* flag
 - Fix FIXME entries in the scripts.
+- Format report according to xARF: https://docs.abusix.com/xarf/gV1jjx9ShyubpbCA4WmZKo
 - Write a third script to provide meaningful statistics about the database content.
 
 ----
