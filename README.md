@@ -127,10 +127,6 @@ Currently, I'm manually evaluating these messages, in turn setting *contacts_rep
 
 An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix and will try to contact them to find a resolution.
 
-#### Planned for the future.
-- A reminder about addresses which already have been reported earlier but still commit abuse. This means a filter should be implemented that sorts out already reported IP addresses from the current report. As such this reminder is implicitly already working but without pointing out that a particular address has been reported before. Is it worth the effort?
-- a *do_report* flag to be manually adjusted for a given contact adress; could be set to 0 and a reason hereunto given in the comment field. Both fields already exist but are not yet used by the scripts. This is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides reporting those to the respective RIR in charge.
-
 ## Installation.
 I recommend cloning the repository to the home directory of a user who is allowed to read log files.
 
@@ -184,18 +180,24 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
   - comment -- should be used for notes regarding *do_report*, not used
 - *contacts_report_idx* on lastreport, do_report for quicker SQL handling
 
+*Contacts_report.do_report* is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides manually reporting those to the respective RIR in charge.
+
 Fields with common names but in distinct tables are meant to be used as a relation (SQL `JOIN`).
 
 Fields designated as *not used* are not queried by the reporter script and are meant to provide more information to the user, or are reserved for future use.
 
 ## ToDos.
 - Generate report with timestamps in UTC.
-- Fix FIXME entries in the scripts.
+- How to handle feedback cases like "we informed customer, please be patient"?
+- Expand report to show the number of abuses from a reported addres older than the two week "detailed" report
+   - how to format this in the report?
 - Modify cronjob to honor `smtp-abuse-syslog.pl` return level to backup/restore logtail's state file accordingly.
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. Should be worked around by a manual handler watching a transition from Month 12 to Month 1, in turn forcing `$year++`.
-- Probaby introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.
+- Probably introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.
+- honor *do_report* flag
+- Fix FIXME entries in the scripts.
 - Write a third script to provide meaningful statistics about the database content.
 
 ----
 
-2024-03-24, poc@pocnet.net
+2024-03-25, poc@pocnet.net
