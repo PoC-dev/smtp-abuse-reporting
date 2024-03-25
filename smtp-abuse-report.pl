@@ -342,7 +342,7 @@ if ( defined($dbh->errstr) ) {
                         }
 
                         # "Update" contact entry.
-                        syslog(LOG_DEBUG, "SQL updating contact_report entry: %s", $abuseaddr);
+                        syslog(LOG_DEBUG, "SQL updating contacts_report entry: %s", $abuseaddr);
                         $sth_update_contacts_report->execute($abuseaddr);
                         if ( defined($dbh->errstr) ) {
                             syslog(LOG_WARNING, "SQL sth_update_contacts_report execution error: %s", $dbh->errstr);
