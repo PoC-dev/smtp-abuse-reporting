@@ -207,12 +207,11 @@ if ( defined($dbh->errstr) ) {
 # Note: This is indepentendent from the definitions in smtp-abuse-syslog.pl.
 
 # Create a list of all contacts which have never been sent a report (contacts_report.lastreport IS NULL), or where the last report
-# has been sent more than a week ago.
-# FIXME: `WHERE contacts_report.do_report = 1 AND ...` fails for records not yet having an entry in contacts_report.
-#        Probably use some other flavor instead of a standard SQL `JOIN`.
-my $sth_query_contacts = $dbh->prepare("SELECT DISTINCT contacts.abuseaddr FROM contacts
+# has been sent more than a week ago. Do only if do_report is undefined (NULL), or 1.
+my $sth_query_contacts = $dbh->prepare("SELECT contacts.abuseaddr FROM contacts
     LEFT JOIN contacts_report ON (contacts.abuseaddr = contacts_report.abuseaddr)
-    WHERE contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days') COLLATE NOCASE;");
+    WHERE (contacts_report.lastreport IS NULL OR contacts_report.lastreport < datetime('now', '-7 days'))
+    AND (do_report=1 OR do_report IS NULL) COLLATE NOCASE;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;

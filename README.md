@@ -176,8 +176,8 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
 - **contacts_report** -- keeping track when a given abuse contact address received a report
   - abuseaddr -- abuse contact address, see also table *contacts*
   - lastreport -- timestamp when this particular contact last received a report
-  - do_report -- default 1. If set to 0, no report should be sent to this particular address — this is not yet implemented, the field is not used
-  - comment -- should be used for notes regarding *do_report*, not used
+  - do_report -- default 1. If set to 0, no report should be sent to this particular address
+  - comment -- should be used for notes regarding *do_report*, not used otherwise
 - *contacts_report_idx* on lastreport, do_report for quicker SQL handling
 
 *Contacts_report.do_report* is meant as a secondary measure to prevent bounces from abuse ignorant IP space users, besides manually reporting those to the respective RIR in charge.
@@ -194,7 +194,6 @@ Fields designated as *not used* are not queried by the reporter script and are m
 - Modify cronjob to honor `smtp-abuse-syslog.pl` return level to backup/restore logtail's state file accordingly.
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. Should be worked around by a manual handler watching a transition from Month 12 to Month 1, in turn forcing `$year++`.
 - Probably introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.
-- honor *do_report* flag
 - Fix FIXME entries in the scripts.
 - Format report according to xARF: https://docs.abusix.com/xarf/gV1jjx9ShyubpbCA4WmZKo
 - Write a third script to provide meaningful statistics about the database content.
