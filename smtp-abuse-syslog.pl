@@ -26,13 +26,13 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-24.00';
+my $versionstring = '2024-03-27.00';
 
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
 my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $numrows, $res,
-    $res_reply, $res_rr);
+    $res_reply, $res_rr, $do_report, $comment);
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -160,6 +160,11 @@ if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
+my $sth_query_contacts_report = $dbh->prepare("SELECT do_report, comment FROM contacts_report WHERE abuseaddr=?;");
+if ( defined($dbh->errstr) ) {
+    syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
+    die;
+}
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -219,6 +224,21 @@ foreach $line ( <STDIN> ) {
                             syslog(LOG_WARNING, "Abusix-Query: No result for query %s: %s", $lookup, $res->errorstring);
                         }
 
+                        # Check contacts_report for a comment. This is for logging purposes only!
+                        $sth_query_contacts_report->execute($abuseaddr);
+                        if ( defined($dbh->errstr) ) {
+                            syslog(LOG_NOTICE, "SQL query_contacts_report execution error: %s", $dbh->errstr);
+                        } else {
+                            ($do_report, $comment) = $sth_query_contacts_report->fetch;
+                            if ( defined($dbh->errstr) ) {
+                                syslog(LOG_NOTICE, "SQL query_contacts_report fetch error: %s", $dbh->errstr);
+                            }
+                        }
+                        if ( defined($do_report) && defined($comment) ) {
+                            syslog(LOG_INFO, "Contact '%s' is already known! Do_report=%d, comment=%s",
+                                $abuseaddr, $do_report, $comment);
+                        }
+
                         # Actually insert row into database.
                         syslog(LOG_DEBUG, "SQL: INSERT INTO contacts (abuseaddr, ipaddr) VALUES ('%s', '%s');",
                             $abuseaddr, $ipaddr);
@@ -251,6 +271,9 @@ END {
     }
     if ( $sth_insert_contact ) {
         $sth_insert_contact->finish;
+    }
+    if ( $sth_query_contacts_report ) {
+        $sth_query_contacts_report->finish;
     }
     if ( $dbh ) {
         $dbh->disconnect;
