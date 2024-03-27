@@ -72,7 +72,7 @@ if ( $retval != 1 ) {
 }
 
 if ( defined($options{h}) || $retval != 1 ) {
-    printf("Usage: abuse-smtp-report(.pl) [options]\nOptions:
+    printf("Usage: smtp-abuse-report(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
     -n: \"dry run\" mode: don't update database, send mail to sender address
@@ -113,9 +113,9 @@ if ( defined($options{t}) ) {
 
 # Enable debug mode.
 if ( defined($options{d}) ) {
-    openlog("abuse-smtp-report", "perror,pid", "user");
+    openlog("smtp-abuse-report", "perror,pid", "user");
 } else {
-    openlog("abuse-smtp-report", "pid", "user");
+    openlog("smtp-abuse-report", "pid", "user");
     # Omit debug messages by default.
     # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(127);
@@ -432,8 +432,13 @@ if ( defined($dbh->errstr) ) {
     }
 }
 
-syslog(LOG_WARNING, "Finished work: handled %d contacts, %d syslog rows and have sent %d emails",
-    $contacts_iter_count, $syslog_rows_sum_count, $sent_mails_count);
+if ( $dry_run eq 0 ) {
+    syslog(LOG_NOTICE, "Finished work: handled %d contacts, %d syslog rows and have sent %d emails",
+        $contacts_iter_count, $syslog_rows_sum_count, $sent_mails_count);
+} else {
+    syslog(LOG_NOTICE, "Finished work (dry run mode): handled %d contacts, %d syslog rows and have sent %d emails",
+        $contacts_iter_count, $syslog_rows_sum_count, $sent_mails_count);
+}
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 

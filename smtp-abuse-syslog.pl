@@ -44,7 +44,7 @@ if ( $retval != 1 ) {
 }
 
 if ( defined($options{h}) || $retval != 1 ) {
-    printf("Usage: abuse-smtp-syslog(.pl) [options]\nOptions:
+    printf("Usage: smtp-abuse-syslog(.pl) [options]\nOptions:
     -d: Enable debug mode
     -h: Show this help and exit
     -t: Test database connection and exit
@@ -59,9 +59,9 @@ if ( defined($options{h}) || $retval != 1 ) {
 
 # Enable debug mode.
 if ( defined($options{d}) ) {
-    openlog("abuse-smtp-syslog", "perror,pid", "user");
+    openlog("smtp-abuse-syslog", "perror,pid", "user");
 } else {
-    openlog("abuse-smtp-syslog", "pid", "user");
+    openlog("smtp-abuse-syslog", "pid", "user");
     # Omit debug messages by default.
     # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(127);
