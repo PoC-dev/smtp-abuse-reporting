@@ -63,7 +63,6 @@ if ( defined($options{d}) ) {
 } else {
     openlog("smtp-abuse-syslog", "pid", "user");
     # Omit debug messages by default.
-    # FIXME: What is the correct way to handle this with symbolic names?
     setlogmask(127);
 }
 
