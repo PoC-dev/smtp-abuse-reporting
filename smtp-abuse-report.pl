@@ -220,6 +220,7 @@ if ( defined($dbh->errstr) ) {
 # Create a list of all syslog entries for a given abuse address, where 
 # - an abuse address is not too old (less than 14 days) AND,
 # - an abuse address has not yet been reported (lastused IS NULL);
+# FIXME: Why not include *all* found records of abuse in the actual report, if we found *recent* abuse records (< 14 days)?
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
      WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL COLLATE NOCASE;";
 
@@ -300,6 +301,8 @@ if ( defined($dbh->errstr) ) {
                 }
             }
             $syslog_rows_sum_count = $syslog_rows_sum_count + $numrows;
+
+            # FIXME: Insert "workaround" for not bugging RIRs directly.
 
             # Get actual records if we have found some.
             if ( $numrows gt 0 ) {
