@@ -123,9 +123,15 @@ Expect around 25% bounce messages for various reasons, such as:
    - badly configured redirects leading to SPF errors for the initial sending domain
    - non-existent domains
 
-Currently, I'm manually evaluating these messages, in turn setting *contacts_report.lastreport* to `NULL` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
+Currently, I'm manually evaluating these messages, in turn setting *contacts_report.do_report* to `0` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies (if implemented) demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
 
-An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix and will try to contact them to find a resolution.
+An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix. However, I'm still awaiting response from them in this regard.
+
+Examples of this caregory are address blocks issued by IANA to RIPE and then passed on to AFRINIC after its formation in 2004. However, the RIPE WHOIS database just states the address block isn't managed by RIPE. Aside from the fact that AFRINIC doesn't provide *any* email addresses for contacts, the whole mess is political in nature, and should eventually be solved on a political layer, and not with technological workarounds.
+
+To sum this up, `smtp-abuse-report.pl` has a hard coded list of all [regional internet registries (RIRs)](https://www.iana.org/numbers). If Abusix comes up with an abuse address with the domain name of a RIR, chances are close to zero that the IP address is actually directly managed by said RIR. This is subsequently reported in a syslog notice message. Meanwhile use the [ICANN registration data lookup tool](https://lookup.icann.org/en) to know which registry is responsible, and should be queried instead.
+
+I hope the last two paragraphs can be deleted from this document, soon; as well as the "workaround" code in `smtp-abuse-report.pl`.
 
 ## Installation.
 I recommend cloning the repository to the home directory of a user who is allowed to read log files.
@@ -187,10 +193,9 @@ Fields with common names but in distinct tables are meant to be used as a relati
 Fields designated as *not used* are not queried by the reporter script and are meant to provide more information to the user, or are reserved for future use.
 
 ## ToDos.
-- Generate report with timestamps in UTC.
+- Generate report with timestamps in UTC instead of local timezone.
 - How to handle feedback cases like "we informed customer, please be patient"?
-- Expand report to show the number of abuses from a reported addres older than the two week "detailed" report
-   - how to format this in the report?
+- How to handle cases like "customer has fixed the issue"?
 - Modify cronjob to honor `smtp-abuse-syslog.pl` return level to backup/restore logtail's state file accordingly.
 - Standard syslog format has no field for the current year. This **will** make the parser fail at year's turnaround, when suddenly after December January follows in the same log run. Should be worked around by a manual handler watching a transition from Month 12 to Month 1, in turn forcing `$year++`.
 - Probably introduce a force-flag (`-f`) to the reporter script, making it ignore the lastreport penalty.
@@ -200,4 +205,4 @@ Fields designated as *not used* are not queried by the reporter script and are m
 
 ----
 
-2024-03-27, poc@pocnet.net
+2024-04-02, poc@pocnet.net
