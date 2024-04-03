@@ -1,9 +1,5 @@
 - Generate report with timestamps in UTC instead of local timezone.
 - How to handle feedback cases like "we informed customer, please be patient"?
-- Introduce a dynamically generated "Abuse Report ID" in email subject:
-   - for easier association of sent reports with replies,
-   - for documentation purposes (in the database),
-   - for probable future automation (handling of incoming email).
 - Reformat eventual email to not designate report as attached file. Some answers hint to people or automatisms not recognizing text attachments.
 - Modify cronjob to honor `smtp-abuse-syslog.pl` return level to backup/restore logtail's state file accordingly.
 - Probably add helper scripts to make updating database fields less laborious.

@@ -27,7 +27,7 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-27.00';
+my $versionstring = '2024-04-03.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
 my $mailfrom = 'abuse-report@' . hostdomain();
@@ -50,7 +50,7 @@ support@abusix.com.';
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
 my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
-    $tmpstr, $dry_run);
+    $tmpstr, $dry_run, $report_id, $email_subject);
 
 # Prepare output format for the report itself.
 format IP_STAMP_REPORT =
@@ -159,7 +159,8 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    reported TEXT
+    reported TEXT,
+    report_id TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
@@ -191,7 +192,8 @@ $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
     abuseaddr TEXT NOT NULL PRIMARY KEY,
     lastreport TEXT,
     do_report INT NOT NULL DEFAULT 1,
-    comment TEXT
+    comment TEXT,
+    report_id TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
@@ -258,13 +260,13 @@ if ( defined($dbh->errstr) ) {
 }
 
 # Update timestamps.
-my $sth_update_contacts_report = $dbh->prepare("INSERT OR REPLACE INTO contacts_report (abuseaddr, lastreport) VALUES
-    (?, datetime('now'));");
+my $sth_update_contacts_report = $dbh->prepare("INSERT OR REPLACE INTO contacts_report (abuseaddr, report_id, lastreport) VALUES
+    (?, ?, datetime('now'));");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
-my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET reported=datetime('now') WHERE rowid=?;");
+my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET reported=datetime('now'), report_id=? WHERE rowid=?;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
@@ -315,20 +317,24 @@ if ( defined($dbh->errstr) ) {
                     syslog(LOG_WARNING, "SQL query_syslog execution error: %s, skipping", $dbh->errstr);
                     next;
                 } else {
+                    # Create Abuse Report ID.
+                    $report_id = sprintf("%08X", rand(0xffffffff));
+                    $email_subject = sprintf("Abuse report [%s]: SMTP probes for username/password pairs", $report_id);
+
                     # Create mail handle for this abuse report.
                     if ( $dry_run eq 0 ) {
                         $email_handle = MIME::Lite->new(
                             From       => $mailfrom,
                             To         => $abuseaddr,
                             CC         => $mailfrom,
-                            Subject    => 'Abuse report: SMTP probes for username/password pairs',
+                            Subject    => $email_subject,
                             Type       => 'multipart/mixed',
                         );
                     } else {
                         $email_handle = MIME::Lite->new(
                             From       => $mailfrom,
                             To         => $mailfrom,
-                            Subject    => 'Abuse report: SMTP probes for username/password pairs',
+                            Subject    => $email_subject,
                             Type       => 'multipart/mixed',
                         );
                     }
@@ -348,7 +354,7 @@ if ( defined($dbh->errstr) ) {
 
                         # "Update" contact entry.
                         syslog(LOG_DEBUG, "SQL updating contacts_report entry: %s", $abuseaddr);
-                        $sth_update_contacts_report->execute($abuseaddr);
+                        $sth_update_contacts_report->execute($abuseaddr, $report_id);
                         if ( defined($dbh->errstr) ) {
                             syslog(LOG_WARNING, "SQL sth_update_contacts_report execution error: %s", $dbh->errstr);
                         }
@@ -380,8 +386,9 @@ if ( defined($dbh->errstr) ) {
 
                             if ( $dry_run eq 0 ) {
                                 # Update individual syslog rows.
-                                syslog(LOG_DEBUG, "SQL updating syslog entry %d: (%s, %s)", $rowid, $logstamp, $ipaddr);
-                                $sth_update_syslog->execute($rowid);
+                                syslog(LOG_DEBUG, "SQL updating syslog entry %d: (%s, %s, %s)",
+                                    $rowid, $logstamp, $ipaddr, $report_id);
+                                $sth_update_syslog->execute($report_id, $rowid);
                                 if ( defined($dbh->errstr) ) {
                                     syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
                                 }

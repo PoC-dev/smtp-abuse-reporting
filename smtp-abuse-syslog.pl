@@ -26,7 +26,7 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-03-27.00';
+my $versionstring = '2024-04-03.00';
 
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
@@ -100,7 +100,8 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    reported TEXT
+    reported TEXT,
+    report_id TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
@@ -132,7 +133,8 @@ $dbh->do("CREATE TABLE IF NOT EXISTS contacts_report (
     abuseaddr TEXT NOT NULL PRIMARY KEY,
     lastreport TEXT,
     do_report INT NOT NULL DEFAULT 1,
-    comment TEXT
+    comment TEXT,
+    report_id TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
