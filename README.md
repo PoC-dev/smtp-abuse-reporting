@@ -41,12 +41,12 @@ undeliverable regular emails.
 
 My system logged at least one SMTP probe from one or more IP addresses
 under your responsibility as described above. The abusing IP addresses
-and time of occurrence are shown in the attached report file. The report
+and time of occurrence are shown in the report below. The report
 contains only IP addresses which were committing probes within the last
 two weeks. Shown time stamps are for time zone
 INSERT_LOCAL_TIME_ZONE_HERE (UTC +xx00), time format is 24 hr clock.
 
-I kindly ask you to have a look at the attached report, and take
+I kindly ask you to have a look at the report below, and take
 appropriate action. Thank you for your understanding and support. Do not
 hesitate to contact me if you experience any additional questions.
 
@@ -55,7 +55,11 @@ a complaint address to a given IP address. Abusix demands attribution to
 their service as found in the attachment abusix_disclaimer.txt.
 
 With kind Regards,
+
 ```
+
+**Note:** Add a blank line at end, so the tabular report can be recognized better.
+
 These scripts are meant to be run as `cron` jobs. See installation section below.
 
 ### Log parsing: `smtp-abuse-syslog.pl`.

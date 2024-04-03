@@ -402,8 +402,6 @@ if ( defined($dbh->errstr) ) {
                     $email_handle->attach(
                         Type        => 'text/plain; charset="us-ascii"',
                         Data        => $ip_stamp_report,
-                        Filename    => 'report.txt',
-                        Disposition => 'attachment',
                     );
 
                     $email_handle->attach(
