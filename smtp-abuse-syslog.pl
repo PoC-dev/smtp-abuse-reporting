@@ -100,7 +100,7 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    lastused TEXT
+    reported TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);

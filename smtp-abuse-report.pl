@@ -159,7 +159,7 @@ $dbh->do("CREATE TABLE IF NOT EXISTS parsed_syslog (
     ipaddr TEXT NOT NULL,
     logstamp TEXT NOT NULL,
     triedlogin TEXT NOT NULL,
-    lastused TEXT
+    reported TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
@@ -218,10 +218,10 @@ if ( defined($dbh->errstr) ) {
 
 # Create a list of all syslog entries for a given abuse address, where 
 # - an abuse address is not too old (less than 14 days) AND,
-# - an abuse address has not yet been reported (lastused IS NULL);
+# - an abuse address has not yet been reported (reported IS NULL);
 # FIXME: Why not include *all* found records of abuse in the actual report, if we found *recent* abuse records (< 14 days)?
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND lastused IS NULL COLLATE NOCASE;";
+     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND reported IS NULL COLLATE NOCASE;";
 
 my $sth_query_syslog = $dbh->prepare("SELECT parsed_syslog.rowid, logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {
@@ -260,7 +260,7 @@ if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;
 }
-my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET lastused=datetime('now') WHERE rowid=?;");
+my $sth_update_syslog = $dbh->prepare("UPDATE parsed_syslog SET reported=datetime('now') WHERE rowid=?;");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL preparation error: %s", $dbh->errstr);
     die;

@@ -1,4 +1,8 @@
-This is a collection of Perl scripts to automate the reporting of abusing IP addresses to the respective responsible contact address. I haven't found a readymade solution for my particular scenario which shows many probes a day for combinations of logins and passwords on my SMTP server. A number which increased manifold compared to January 2024.
+This is a collection of Perl scripts to automate the reporting of abusing IP addresses to the respective responsible contact address.
+
+**Note:** Possible changes to an existing database have been noted in the appropriate section *Database layout*.
+
+I haven't found a readymade solution for my particular scenario which shows many probes a day for combinations of logins and passwords on my SMTP server. A number which increased manifold compared to January 2024.
 
 These probes come from many different IP addresses all over the world but use common or very similar login names. The pattern shown strongly suggests these are hosts which have been hijacked and part of a centrally orchestrated botnet.
 
@@ -173,16 +177,16 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
   - ipaddr -- abusing IP address
   - logstamp -- timestamp from syslog
   - triedlogin -- login name which was attempted (currently filled but not used)
-  - usestamp -- timestamp when this record was last used (reported); this is changed only by `smtp-abuse-report.pl`
+  - reported -- timestamp when this record was last used (reported); this is changed only by `smtp-abuse-report.pl`
 - *parsed_syslog_idx* on logstamp, ipaddr, triedlogin for quicker SQL handling
 - **contacts** -- individual abusing IP addresses with their respective abuse contact address
   - abuseaddr -- abuse contact address for a given IP address
   - ipaddr -- abusing IP address, see also table *parsed_syslog*
 - *contacts_idx* on abuseaddr for quicker SQL handling
-- **contacts_report** -- keeping track when a given abuse contact address received a report
+- **contacts_report** -- keeping track when a given abuse contact address received a report, no matter which *ipaddr* was reported
   - abuseaddr -- abuse contact address, see also table *contacts*
   - lastreport -- timestamp when this particular contact last received a report
-  - do_report -- default 1. If set to 0, no report should be sent to this particular address
+  - do_report -- default 1. If set to 0, no report should be sent to this particular address, e. g. because it bounces
   - comment -- should be used for notes regarding *do_report*, not used otherwise
 - *contacts_report_idx* on lastreport, do_report for quicker SQL handling
 
@@ -191,6 +195,12 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
 Fields with common names but in distinct tables are meant to be used as a relation (SQL `JOIN`).
 
 Fields designated as *not used* are not queried by the reporter script and are meant to provide more information to the user, or are reserved for future use.
+
+### Database changes.
+As of 2024-04-03, more fields have been added to the database. This should be reflected as follows:
+```
+ALTER TABLE parsed_syslog RENAME column lastused to reported;
+```
 
 ## ToDos.
 See separate file [TODO.md](TODO.md).
