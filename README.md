@@ -182,6 +182,8 @@ The aforementioned `~/.abusedb.sqlite` is created automatically if it doesn't ex
 - **contacts** -- individual abusing IP addresses with their respective abuse contact address
   - abuseaddr -- abuse contact address for a given IP address
   - ipaddr -- abusing IP address, see also table *parsed_syslog*
+  - allegedfix -- record abuse response timestamp manually to prevent older but not yet reported syslog entries to be collected and reported needlessly
+  - comment -- report abuse response here, not used otherwise
 - *contacts_idx* on abuseaddr for quicker SQL handling
 - **contacts_report** -- keeping track when a given abuse contact address received a report, no matter which *ipaddr* was reported
   - abuseaddr -- abuse contact address, see also table *contacts*
@@ -200,6 +202,8 @@ Fields designated as *not used* are not queried by the reporter script and are m
 As of 2024-04-03, more fields have been added to the database. This should be reflected as follows:
 ```
 ALTER TABLE parsed_syslog RENAME column lastused to reported;
+ALTER TABLE contacts ADD COLUMN allegedfix TEXT;
+ALTER TABLE contacts ADD COLUMN comment TEXT;
 ```
 
 ## ToDos.

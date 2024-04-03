@@ -173,7 +173,9 @@ if ( defined($dbh->errstr) ) {
 
 $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
     abuseaddr TEXT,
-    ipaddr TEXT NOT NULL PRIMARY KEY
+    ipaddr TEXT NOT NULL PRIMARY KEY,
+    allegedfix TEXT,
+    comment TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
@@ -217,11 +219,13 @@ if ( defined($dbh->errstr) ) {
 }
 
 # Create a list of all syslog entries for a given abuse address, where 
-# - an abuse address is not too old (less than 14 days) AND,
-# - an abuse address has not yet been reported (reported IS NULL);
+# - an abusing IP address is not too old (less than 14 days), AND
+# - an abusing IP address has not yet been reported (reported IS NULL), AND
+# - an abusing IP address is newer then recorded in contacts.allegedfix.
 # FIXME: Why not include *all* found records of abuse in the actual report, if we found *recent* abuse records (< 14 days)?
 my $query_syslog_common_sql = "FROM parsed_syslog LEFT JOIN contacts ON (parsed_syslog.ipaddr = contacts.ipaddr)
-     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND reported IS NULL COLLATE NOCASE;";
+     WHERE contacts.abuseaddr = ? AND logstamp >= datetime('now', '-14 days') AND reported IS NULL AND
+     (allegedfix IS NULL OR logstamp >= allegedfix) COLLATE NOCASE;";
 
 my $sth_query_syslog = $dbh->prepare("SELECT parsed_syslog.rowid, logstamp, parsed_syslog.ipaddr " . $query_syslog_common_sql);
 if ( defined($dbh->errstr) ) {

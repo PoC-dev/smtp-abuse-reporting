@@ -1,6 +1,5 @@
 - Generate report with timestamps in UTC instead of local timezone.
 - How to handle feedback cases like "we informed customer, please be patient"?
-- How to handle cases like "customer has fixed the issue"? => Timestamp of fix in contacts, suppressing syslog rows older than this timestamp to be collected.
 - Introduce a dynamically generated "Abuse Report ID" in email subject:
    - for easier association of sent reports with replies,
    - for documentation purposes (in the database),

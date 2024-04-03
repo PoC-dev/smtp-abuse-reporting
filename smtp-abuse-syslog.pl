@@ -114,7 +114,9 @@ if ( defined($dbh->errstr) ) {
 
 $dbh->do("CREATE TABLE IF NOT EXISTS contacts (
     abuseaddr TEXT,
-    ipaddr TEXT NOT NULL PRIMARY KEY
+    ipaddr TEXT NOT NULL PRIMARY KEY,
+    allegedfix TEXT,
+    comment TEXT
     );");
 if ( defined($dbh->errstr) ) {
     syslog(LOG_ERR, "SQL do error: %s", $dbh->errstr);
