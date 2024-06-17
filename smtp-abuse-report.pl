@@ -339,11 +339,6 @@ if ( defined($dbh->errstr) ) {
                         );
                     }
 
-                    $email_handle->attach(
-                        Type        => 'text/plain; charset="us-ascii"',
-                        Data        => $email_text,
-                    );
-
                     if ( $dry_run eq 0 ) {
                         # Prepare SQL transaction before we do write into the database.
                         syslog(LOG_DEBUG, "SQL BEGIN TRANSACTION");
@@ -398,12 +393,13 @@ if ( defined($dbh->errstr) ) {
 
                     close(IP_STAMP_REPORT);
 
-                    # Attach virtual file (report in $ip_stamp_report).
+                    # "Attach" virtual file (explanatory text, and report in $ip_stamp_report).
                     $email_handle->attach(
                         Type        => 'text/plain; charset="us-ascii"',
-                        Data        => $ip_stamp_report,
+                        Data        => $email_text . '\n' . $ip_stamp_report,
                     );
 
+                    # Attach abusix disclaimer.
                     $email_handle->attach(
                         Type        => 'text/plain; charset="us-ascii"',
                         Data        => $abusix_disclaimer,
