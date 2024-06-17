@@ -17,18 +17,18 @@ Just blocking them with Fail2Ban is not feasible. A given IP address probes not 
 ```
 Dear Madams and Sirs,
 
-for some weeks now I'm experiencing probes for combinations of logins
-and passwords to my SMTP server myhost.example.com (0.0.0.0). A number
-which increased manifold compared to January 2024.
+since about February I'm experiencing an increasing amount of probes for
+combinations of logins and passwords to my SMTP server myhost.example.com
+(0.0.0.0).
 
 These probes come from many different IP addresses all over the world.
 They show a pattern, though. Probed addresses are contextual to the
-probed server (mine), and probed logins are common or very similar login
-names, probably derived from scraping of real email addresses.  The
-pattern shown strongly suggests these are hosts which have been hijacked
-and are part of a centrally orchestrated botnet. All of these probes
-connect to the usual SMTP TCP port 25. (My system doesn't use any other
-ports for mail delivery.)
+probed server (mine), and probed logins are common (like "test",
+"www-data") or very similar login names, probably derived from scraping
+of real email addresses.  The pattern shown strongly suggests these are
+hosts which have been hijacked and are part of a centrally orchestrated
+botnet. All of these probes connect to the usual SMTP TCP port 25. (My
+system doesn't use any other ports for mail delivery.)
 
 This is an example (!) syslog excerpt:
 Mar 20 21:29:15 leela postfix/smtpd[50701]: warning: unknown[0.0.0.0]:
@@ -41,18 +41,22 @@ undeliverable regular emails.
 
 My system logged at least one SMTP probe from one or more IP addresses
 under your responsibility as described above. The abusing IP addresses
-and time of occurrence are shown in the report below. The report
-contains only IP addresses which were committing probes within the last
-two weeks. Shown time stamps are for time zone
-INSERT_LOCAL_TIME_ZONE_HERE (UTC +xx00), time format is 24 hr clock.
+and time of occurrence are shown in the report below. Shown time stamps
+are for time zone INSERT_LOCAL_TIME_ZONE_HERE (UTC +xx00), time format
+is 24 hr clock.
 
 I kindly ask you to have a look at the report below, and take
-appropriate action. Thank you for your understanding and support. Do not
+appropriate action. If you are not the main responsible person for this
+system, please forward this mail to the main responsible person, and
+update the abuse contact record in your RIR's WHOIS database
+accordingly. Thank you for your understanding and support. Do not
 hesitate to contact me if you experience any additional questions.
 
 Please note that I have used the Abusix service to automatically obtain
 a complaint address to a given IP address. Abusix demands attribution to
-their service as found in the attachment abusix_disclaimer.txt.
+their service as found in the attachment abusix_disclaimer.txt. In
+addition, if you feel that my mail is sent to you in error, you should
+probably check the abuse contact information in your RIR's WHOIS database.
 
 With kind Regards,
 
@@ -95,10 +99,10 @@ It also updates timestamps in the respective tables accordingly after a particul
 
 Reports contain:
 - Static text for the mailbody as shown above,
-- the Abusix disclaimer as attachment,
-- the actual tabular report as attachment, containing
+- the actual tabular report, containing
    - timestamp according to the local time zone,
-   - abusing IP address.
+   - abusing IP address,
+- the Abusix disclaimer as attachment.
 
 Dry run mode (`-n`) sends mails to the configured local sender's address instead of the database derived abuse contact. This primarily meant to see if reports make sense. Otherwise, reports are sent to the database derived abuse contact, and CC'ed to the configured local sender's address.
 
@@ -133,13 +137,9 @@ Expect around 25% bounce messages for various reasons, such as:
 
 Currently, I'm manually evaluating these messages, in turn setting *contacts_report.do_report* to `0` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies (if implemented) demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
 
-An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix. However, I'm still awaiting response from them in this regard.
+An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix, and they confirmed that I catched a corner case. They allege they're working on a fix.
 
 Examples of this caregory are address blocks issued by IANA to RIPE and then passed on to AFRINIC after its formation in 2004. However, the RIPE WHOIS database just states the address block isn't managed by RIPE. Aside from the fact that AFRINIC doesn't provide *any* email addresses for contacts, the whole mess is political in nature, and should eventually be solved on a political layer, and not with technological workarounds.
-
-To sum this up, `smtp-abuse-report.pl` has a hard coded list of all [regional internet registries (RIRs)](https://www.iana.org/numbers). If Abusix comes up with an abuse address with the domain name of a RIR, chances are close to zero that the IP address is actually directly managed by said RIR. This is subsequently reported in a syslog notice message. Meanwhile use the [ICANN registration data lookup tool](https://lookup.icann.org/en) to know which registry is responsible, and should be queried instead.
-
-I hope the last two paragraphs can be deleted from this document, soon; as well as the "workaround" code in `smtp-abuse-report.pl`.
 
 ## Installation.
 I recommend cloning the repository to the home directory of a user who is allowed to read log files.
@@ -221,4 +221,4 @@ Also see *FIXME* notes in the actual perl scripts.
 
 ----
 
-2024-04-03, poc@pocnet.net
+2024-06-17, poc@pocnet.net
