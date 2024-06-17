@@ -186,8 +186,11 @@ foreach $line ( <STDIN> ) {
             $ipaddr = $3;
             $triedlogin = $5;
 
-            # Format date and time to a timestamp.
+            # Format date and time to a timestamp. Note, the timestamp contains local time!
             $syslog_ts = Time::Piece->strptime($now->year . " " . $1, "%Y %b %e %T");
+            # FIXME: Incorporate, and test "%z" for the UTC offset.
+            #        A correctly formatted time stamp must look like this: 2024-04-04T00:52:27.000+02:00
+            #        Subsequent functions should use time/date formatting options of SQLite to take the time zone into account.
             $logstamp = $syslog_ts->strftime("%Y-%m-%d %T.000");
 
             # Write entry to syslog table.
