@@ -31,7 +31,7 @@ my $versionstring = '2024-04-03.00';
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
-my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $numrows, $res,
+my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $now, $numrows, $res,
     $res_reply, $res_rr, $do_report, $comment);
 
 #-----------------------------------------------------------------------------------------------------------------------------------
@@ -171,11 +171,6 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
-# Retrieve current year.
-# FIXME: This *will* fail at year's turnaround, when suddenly after December January follows in the same log run.
-#        Ideally, Syslog would include the log entry year.
-my $now = localtime();
-
 # Read from stdin, format one line and spit it out again.
 foreach $line ( <STDIN> ) {
 	chomp($line);
@@ -187,6 +182,8 @@ foreach $line ( <STDIN> ) {
             $triedlogin = $5;
 
             # Format date and time to a timestamp. Note, the timestamp contains local time!
+            #  Note: We poll local time on each run, so we always get the current year, even at new years eve.
+            $now = localtime();
             $syslog_ts = Time::Piece->strptime($now->year . " " . $1, "%Y %b %e %T");
             # FIXME: Incorporate, and test "%z" for the UTC offset.
             #        A correctly formatted time stamp must look like this: 2024-04-04T00:52:27.000+02:00
