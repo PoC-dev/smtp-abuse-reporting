@@ -26,7 +26,7 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-04-03.00';
+my $versionstring = '2024-12-30.00';
 
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
