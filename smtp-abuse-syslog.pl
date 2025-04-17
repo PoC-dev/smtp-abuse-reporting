@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Copyright 2024 Patrik Schindler <poc@pocnet.net>
+# Copyright 2024-2025 Patrik Schindler <poc@pocnet.net>
 #
 # This is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
@@ -26,13 +26,16 @@ use Net::DNS;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-12-30.00';
+my $versionstring = '2025-04-17.00';
 
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
 my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $now, $numrows, $res,
-    $res_reply, $res_rr, $do_report, $comment);
+    $res_reply, $res_rr, $do_report, $comment, $adjusted_year, $current_day, $current_year, $day, $hour, $minute, $month,
+    $month_num, $second, $current_month
+
+);
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -171,24 +174,42 @@ if ( defined($dbh->errstr) ) {
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 
+$now = localtime();
+
 # Read from stdin, format one line and spit it out again.
 foreach $line ( <STDIN> ) {
 	chomp($line);
 	if ( $line =~ /^(\w{3} [ :0-9]{11}) [\._[:alnum:]]+ postfix\/smtpd\[[0-9]+\]: warning: ([[:print:]]+)\[([[:xdigit:]:.]+)\]: SASL (LOGIN|PLAIN) authentication failed: authentication failure, sasl_username=([[:print:]]+)$/ ) {
 		if (defined($1) && defined($2) && defined($3) && defined($5) ) {
-            # Sort into variables.
+            $syslog_ts = $1;
             $dnsptr = $2;
             $ipaddr = $3;
             $triedlogin = $5;
 
-            # Format date and time to a timestamp. Note, the timestamp contains local time!
-            #  Note: We poll local time on each run, so we always get the current year, even at new years eve.
-            $now = localtime();
-            $syslog_ts = Time::Piece->strptime($now->year . " " . $1, "%Y %b %e %T");
-            # FIXME: Incorporate, and test "%z" for the UTC offset.
-            #        A correctly formatted time stamp must look like this: 2024-04-04T00:52:27.000+02:00
-            #        Subsequent functions should use time/date formatting options of SQLite to take the time zone into account.
-            $logstamp = $syslog_ts->strftime("%Y-%m-%d %T.000");
+
+            # The next part is required to estimate year's turn and add the proper year to complement the timestamp to be complete.
+            # Suggestion by ChatGPT.
+            $syslog_ts =~ /^([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/;
+            ($month, $day, $hour, $minute, $second) = ($1, $2, $3, $4, $5);
+            # Convert month abbreviation to month number.
+            my %month_map = (
+                'Jan' => 1, 'Feb' => 2, 'Mar' => 3, 'Apr' => 4,
+                'May' => 5, 'Jun' => 6, 'Jul' => 7, 'Aug' => 8,
+                'Sep' => 9, 'Oct' => 10, 'Nov' => 11, 'Dec' => 12
+            );
+            $month_num = $month_map{$month};
+            # Get the current date to help calculate year change (if any).
+            $current_year = (localtime)[5] + 1900;
+            ($current_month, $current_day) = (localtime)[4, 3];
+            $current_month += 1;  # Adjust because localtime returns months 0-11.
+            $adjusted_year = $current_year;
+            # If the given date is earlier in the year than the current date, consider it last year.
+            if ($month_num < $current_month || ($month_num == $current_month && $day < $current_day)) {
+                $adjusted_year--;
+            }
+            # Create a timestamp from the extracted values.
+            $logstamp = sprintf("%04d-%02d-%02d %02d:%02d:%02d", $adjusted_year, $month_num, $day, $hour, $minute, $second);
+
 
             # Write entry to syslog table.
             syslog(LOG_DEBUG, "SQL: INSERT INTO parsed_syslog (dnsptr, ipaddr, logstamp, triedlogin) VALUES ('%s', '%s', '%s', '%s');",
