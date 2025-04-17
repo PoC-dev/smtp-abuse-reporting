@@ -10,6 +10,7 @@ Just blocking them with Fail2Ban is not feasible. A given IP address probes not 
 
 ## Description.
 ### Files.
+- `smtp-abuse-syslog.sh` utilizes *logtail* to find new data in */var/log/mail.log* since the last run, and feeds this to *smtp-abuse-syslog.pl*.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
 - `smtp-abuse-report.pl` is the reporting script which sends out automated email to the found abuse email addresses according to SQLite database content.
 - `~/.abusedb.sqlite` is the SQLite database to hold actual data. It is automatically created by any of the aforementioned scripts if not existing.
@@ -165,7 +166,7 @@ Next, use the archived logs to fill the database with inital data:
 ```
 Finally, create a cronjob like the following:
 ```
-51 * * * *  /usr/sbin/logtail -f /var/log/mail.log -o .smtp-abuse-syslog-offset |smtp-abuse-reporting/smtp-abuse-syslog.pl
+51 * * * *  smtp-abuse-reporting/smtp-abuse-syslog.sh
 ```
 Because there is not yet a *~/.smtp-abuse-syslog-offset* file, the omitted current log file will be parsed entirely with the next cron run, and entries added accordingly. With that, there is no opportunity to miss any entries.
 
@@ -221,4 +222,4 @@ Also see *FIXME* notes in the actual perl scripts.
 
 ----
 
-2024-06-17, poc@pocnet.net
+2025-04-18, poc@pocnet.net
