@@ -17,17 +17,19 @@ use strict;
 no strict "subs"; # For allowing symbolic names for syslog priorities.
 use warnings;
 use DBI;
+use DateTime;
+use DateTime::TimeZone;
 use Getopt::Std;
 use MIME::Lite;
 use Net::Domain qw(hostdomain);
 use Sys::Syslog;
-use Time::Piece;
+#use Time::Piece;
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2025-04-17.00';
+my $versionstring = '2025-04-18.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
 my $mailfrom = 'abuse-report@' . hostdomain();
@@ -49,8 +51,9 @@ support@abusix.com.';
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
-my ($dbh, $test_db, $retval, $abuseaddr, $ipaddr, $logstamp, $numrows, $email_handle, $email_text, $fh, $ip_stamp_report, $rowid,
-    $tmpstr, $dry_run, $report_id, $email_subject);
+my ($abuseaddr, $day, $dbh, $dry_run, $dt, $email_handle, $email_subject, $email_text, $fh, $hour, $ipaddr, $ip_stamp_report,
+    $logstamp, $minute, $month, $numrows, $report_id, $retval, $rowid, $second, $test_db, $tmpstr, $utc_dt, $year
+);
 
 # Prepare output format for the report itself.
 format IP_STAMP_REPORT =
@@ -376,19 +379,39 @@ if ( defined($dbh->errstr) ) {
                                 $logstamp = $1;
                             }
 
-                            # FIXME: Calculate timestamp in UTC.
+                            # Calculate timestamp to UTC.
+                            if ($logstamp =~ /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/) {
+                                ($year, $month, $day, $hour, $minute, $second) = ($1, $2, $3, $4, $5, $6);
 
-                            # Write records to a reporting "file" for later attachment.
-                            write(IP_STAMP_REPORT);
+                                $dt = DateTime->new(
+                                    year      => $year,
+                                    month     => $month,
+                                    day       => $day,
+                                    hour      => $hour,
+                                    minute    => $minute,
+                                    second    => $second,
+                                    time_zone => 'Europe/Berlin',  # Berlin time zone handles both CET and CEST
+                                );
+                                $utc_dt = $dt->clone->set_time_zone('UTC');
 
-                            if ( $dry_run eq 0 ) {
-                                # Update individual syslog rows.
-                                syslog(LOG_DEBUG, "SQL updating syslog entry %d: (%s, %s, %s)",
-                                    $rowid, $logstamp, $ipaddr, $report_id);
-                                $sth_update_syslog->execute($report_id, $rowid);
-                                if ( defined($dbh->errstr) ) {
-                                    syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
+                                # Output the UTC time in the same format
+                                $logstamp = sprintf("%s", $utc_dt->strftime('%Y-%m-%d %H:%M:%S'));
+
+                                # Write records to a reporting "file" for later attachment.
+                                write(IP_STAMP_REPORT);
+
+                                if ( $dry_run eq 0 ) {
+                                    # Update individual syslog rows.
+                                    syslog(LOG_DEBUG, "SQL updating syslog entry %d: (%s, %s, %s)",
+                                        $rowid, $logstamp, $ipaddr, $report_id);
+                                    $sth_update_syslog->execute($report_id, $rowid);
+                                    if ( defined($dbh->errstr) ) {
+                                        syslog(LOG_WARNING, "SQL sth_update_syslog execution error: %s", $dbh->errstr);
+                                    }
                                 }
+                            } else {
+                                syslog(LOG_WARNING, "could not parse timestamp '%s' for UTC conversion, skipping", $logstamp);
+                                next;
                             }
                         }
                     }

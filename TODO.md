@@ -1,4 +1,3 @@
-- Generate report with timestamps in UTC instead of local timezone.
 - How to handle feedback cases like "we informed customer, please be patient"?
 - Probably introduce a force-flag (`-f`) to `smtp-abuse-report.pl` script, making it ignore the lastreport penalty.
 - Format report according to xARF: https://docs.abusix.com/xarf/gV1jjx9ShyubpbCA4WmZKo
@@ -13,4 +12,4 @@
 
 ----
 
-2025-04-17, poc@pocnet.net
+2025-04-18, poc@pocnet.net

@@ -18,9 +18,8 @@ Just blocking them with Fail2Ban is not feasible. A given IP address probes not 
 ```
 Dear Madams and Sirs,
 
-since about February I'm experiencing an increasing amount of probes for
-combinations of logins and passwords to my SMTP server myhost.example.com
-(0.0.0.0).
+I'm experiencing an ever-increasing amount of probes for combinations of
+logins and passwords to my SMTP server myhost.example.com (0.0.0.0).
 
 These probes come from many different IP addresses all over the world.
 They show a pattern, though. Probed addresses are contextual to the
@@ -43,8 +42,7 @@ undeliverable regular emails.
 My system logged at least one SMTP probe from one or more IP addresses
 under your responsibility as described above. The abusing IP addresses
 and time of occurrence are shown in the report below. Shown time stamps
-are for time zone INSERT_LOCAL_TIME_ZONE_HERE (UTC +xx00), time format
-is 24 hr clock.
+are for time zone UTC, time format is 24 hr clock.
 
 I kindly ask you to have a look at the report below, and take
 appropriate action. If you are not the main responsible person for this
@@ -101,7 +99,7 @@ It also updates timestamps in the respective tables accordingly after a particul
 Reports contain:
 - Static text for the mailbody as shown above,
 - the actual tabular report, containing
-   - timestamp according to the local time zone,
+   - timestamp in UTC,
    - abusing IP address,
 - the Abusix disclaimer as attachment.
 
