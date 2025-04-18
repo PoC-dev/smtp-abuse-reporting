@@ -18,9 +18,8 @@ no strict "subs"; # For allowing symbolic names for syslog priorities.
 use warnings;
 use DBI;
 use Getopt::Std;
-use Sys::Syslog;
-use Time::Piece;
 use Net::DNS;
+use Sys::Syslog;
 
 #-----------------------------------------------------------------------------------------------------------------------------------
 # Vars.
@@ -31,10 +30,9 @@ my $versionstring = '2025-04-17.00';
 # Path and name of the database.
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
-my ($dbh, $line, $test_db, $retval, $syslog_ts, $abuseaddr, $dnsptr, $ipaddr, $triedlogin, $lookup, $logstamp, $now, $numrows, $res,
-    $res_reply, $res_rr, $do_report, $comment, $adjusted_year, $current_day, $current_year, $day, $hour, $minute, $month,
-    $month_num, $second, $current_month
-
+my ( $abuseaddr, $adjusted_year, $comment, $current_day, $current_month, $current_year, $day, $dbh, $dnsptr, $do_report, $hour,
+    $ipaddr, $line, $logstamp, $lookup, $minute, $month, $month_num, $now, $numrows, $res, $res_reply, $res_rr, $retval, $second,
+    $syslog_ts, $test_db, $triedlogin
 );
 
 #-----------------------------------------------------------------------------------------------------------------------------------
