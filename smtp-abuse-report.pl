@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Copyright 2024 Patrik Schindler <poc@pocnet.net>
+# Copyright 2024-2025 Patrik Schindler <poc@pocnet.net>
 #
 # This is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
@@ -27,7 +27,7 @@ use Time::Piece;
 # Vars.
 
 # This is to be manually incremented on each "publish".
-my $versionstring = '2024-04-03.00';
+my $versionstring = '2025-04-17.00';
 
 # This needs to be a deliverable email address, because you *will* receive bounce messages!
 my $mailfrom = 'abuse-report@' . hostdomain();
@@ -375,6 +375,8 @@ if ( defined($dbh->errstr) ) {
                             if ( defined($1) ) {
                                 $logstamp = $1;
                             }
+
+                            # FIXME: Calculate timestamp in UTC.
 
                             # Write records to a reporting "file" for later attachment.
                             write(IP_STAMP_REPORT);
