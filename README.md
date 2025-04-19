@@ -13,6 +13,7 @@ Just blocking them with Fail2Ban is not feasible. A given IP address probes not 
 - `smtp-abuse-syslog.sh` utilizes *logtail* to find new data in */var/log/mail.log* since the last run, and feeds this to *smtp-abuse-syslog.pl*.
 - `smtp-abuse-syslog.pl` is the parser script which populates the found error messages into the SQLite database.
 - `smtp-abuse-report.pl` is the reporting script which sends out automated email to the found abuse email addresses according to SQLite database content.
+- `smtp-abuse-export.sh` writes database content of the SQLite tables into csv files for importing into IBM i tables.
 - `~/.abusedb.sqlite` is the SQLite database to hold actual data. It is automatically created by any of the aforementioned scripts if not existing.
 - `~/.abuse-mailbody.txt` is a greeting text expected to be plain us-ascii which is sent as mail body. It must be provided manually. Example:
 ```
@@ -136,6 +137,8 @@ Expect around 25% bounce messages for various reasons, such as:
 
 Currently, I'm manually evaluating these messages, in turn setting *contacts_report.do_report* to `0` and provide an explanatory text in *contacts_report.comment*. I have not yet established a standard way how to deal with those. Overall, RIR policies (if implemented) demand abuse addresses to be functioning, and I'm planning to file complaints to the respective RIRs so they have their members fix their faulty abuse addresses.
 
+***Note:*** There is currently no comfortable way to change database records as described above, besides manual SQL.
+
 An interesting category of automatic answers are from RIR abuse contacts. Looking more closely, these addresses are allegedly not managed by a given RIR despite the Abusix database listing the given RIR's abuse address for an IP address. I expect this to be an error of Abusix, and they confirmed that I catched a corner case. They allege they're working on a fix.
 
 Examples of this caregory are address blocks issued by IANA to RIPE and then passed on to AFRINIC after its formation in 2004. However, the RIPE WHOIS database just states the address block isn't managed by RIPE. Aside from the fact that AFRINIC doesn't provide *any* email addresses for contacts, the whole mess is political in nature, and should eventually be solved on a political layer, and not with technological workarounds.
@@ -220,4 +223,4 @@ Also see *FIXME* notes in the actual perl scripts.
 
 ----
 
-2025-04-18, poc@pocnet.net
+2025-04-19, poc@pocnet.net
