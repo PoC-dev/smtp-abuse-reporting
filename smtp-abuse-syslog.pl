@@ -31,7 +31,7 @@ my $versionstring = '2025-04-17.00';
 my $sqlite_db = "$ENV{HOME}/.abusedb.sqlite";
 
 my ( $abuseaddr, $adjusted_year, $comment, $current_day, $current_month, $current_year, $day, $dbh, $dnsptr, $do_report, $hour,
-    $ipaddr, $line, $logstamp, $lookup, $minute, $month, $month_num, $now, $numrows, $res, $res_reply, $res_rr, $retval, $second,
+    $ipaddr, $line, $logstamp, $lookup, $minute, $month, $month_num, $numrows, $res, $res_reply, $res_rr, $retval, $second,
     $syslog_ts, $test_db, $triedlogin
 );
 
@@ -171,8 +171,6 @@ if ( defined($dbh->errstr) ) {
 }
 
 #-----------------------------------------------------------------------------------------------------------------------------------
-
-$now = localtime();
 
 # Read from stdin, format one line and spit it out again.
 foreach $line ( <STDIN> ) {
