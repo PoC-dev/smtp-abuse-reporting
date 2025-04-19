@@ -7,3 +7,5 @@ cp -a ${HOME}/.smtp-abuse-syslog-offset ${HOME}/.smtp-abuse-syslog-offset~
 	echo "Error occurred, backing out offset-file."
 	cp -a ${HOME}/.smtp-abuse-syslog-offset~ ${HOME}/.smtp-abuse-syslog-offset
 }
+
+exit 0
